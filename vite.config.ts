@@ -24,6 +24,8 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     target: 'es2020',
+    // three.js を含む 3D チャンクは動的 import で分離済み（約 550kB）
+    chunkSizeWarningLimit: 800,
   },
   test: {
     environment: 'node',

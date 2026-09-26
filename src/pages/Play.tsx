@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sfx, speak } from '../audio';
 import { fireConfetti, toast } from '../components/feedback';
-import { GameCanvas } from '../components/GameCanvas';
+import { AnyGameCanvas } from '../components/AnyGameCanvas';
 import { Empty, Modal } from '../components/ui';
 import { themeDef } from '../engine/themes';
 import type { GameData, GameResult } from '../engine/types';
@@ -123,7 +123,8 @@ export function GamePlayer({ game, published, shared }: PlayerProps) {
         </a>
         <h1>{game.title || 'なまえのないゲーム'}</h1>
         <span className="hint">
-          {th.emoji} {th.name} · {game.rules.mode === 'platformer' ? '🦘 ジャンプ' : '🚶 あるく'} · {game.authorAvatar} {game.author || 'あなた'}
+          {th.emoji} {th.name} · {game.rules.mode === 'platformer' ? '🦘 ジャンプ' : game.rules.mode === '3d' ? '🧊 3D' : '🚶 あるく'} · {game.authorAvatar}{' '}
+          {game.author || 'あなた'}
         </span>
         <span className="spacer" />
         {best !== undefined && <span className="hint">🥇 ベスト {best}</span>}
@@ -162,7 +163,7 @@ export function GamePlayer({ game, published, shared }: PlayerProps) {
         </button>
       </div>
       {game.description && <p className="hint">{game.description}</p>}
-      <GameCanvas game={game} onFinish={onFinish} resetKey={resetKey} />
+      <AnyGameCanvas game={game} onFinish={onFinish} resetKey={resetKey} />
       {result && <ResultModal result={result} game={game} onRetry={retry} published={published} />}
     </main>
   );

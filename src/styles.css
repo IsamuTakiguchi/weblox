@@ -907,6 +907,20 @@ textarea:focus {
   border-color: var(--blue);
 }
 
+.pad-cam {
+  font-size: 22px;
+  color: var(--muted);
+}
+
+.canvas-3d {
+  touch-action: none;
+  cursor: grab;
+}
+
+.canvas-3d:active {
+  cursor: grabbing;
+}
+
 .pad-jump {
   width: 90px;
   height: 90px;

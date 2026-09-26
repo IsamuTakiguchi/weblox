@@ -190,8 +190,118 @@ export function renderRuntime(ctx: CanvasRenderingContext2D, rt: GameRuntime, w:
   return { x: camX, y: camY, tile };
 }
 
+function shade(hex: string, factor: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = Math.max(0, Math.min(255, Math.round(((n >> 16) & 255) * factor)));
+  const g = Math.max(0, Math.min(255, Math.round(((n >> 8) & 255) * factor)));
+  const b = Math.max(0, Math.min(255, Math.round((n & 255) * factor)));
+  return `rgb(${r},${g},${b})`;
+}
+
+/** 3D モードのマップを等角投影（ななめ上から見た図）で描く */
+export function renderIsometric(ctx: CanvasRenderingContext2D, game: GameData, w: number, h: number, showStart = true): void {
+  const th = themeDef(game.theme);
+  const W = game.width;
+  const H = game.height;
+  // タイル幅 tw、奥行き th = tw/2、高さ 1 ブロック = hz
+  const maxH = 3;
+  const unitW = w / ((W + H) * 0.5 + 1);
+  const unitH = h / ((W + H) * 0.25 + maxH * 0.5 + 1.5);
+  const tw = Math.min(unitW, unitH * 2);
+  const td = tw / 2;
+  const hz = tw * 0.5;
+  const originX = w / 2 + ((H - W) * tw) / 4;
+  const originY = (h - ((W + H) * td) / 2) / 2 + maxH * hz * 0.4;
+
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, th.skyTop);
+  g.addColorStop(1, th.skyBottom);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+
+  const px = (x: number, y: number, z: number) => ({ sx: originX + ((x - y) * tw) / 2, sy: originY + ((x + y) * td) / 2 - z * hz });
+
+  const heightOf = (t: TileId): number => {
+    if (t === 'empty') return 0;
+    if (t === 'wall' || t === 'door') return 3;
+    if (t === 'water') return 0.6;
+    if (t === 'cloud') return 2.5;
+    return 1;
+  };
+
+  const drawBlock = (x: number, y: number, bottom: number, top: number, topColor: string, sideColor: string) => {
+    const a = px(x, y, top);
+    const b = px(x + 1, y, top);
+    const c = px(x + 1, y + 1, top);
+    const d = px(x, y + 1, top);
+    // 左側面（y+1 側）
+    const d0 = px(x, y + 1, bottom);
+    const c0 = px(x + 1, y + 1, bottom);
+    ctx.fillStyle = shade(sideColor, 0.85);
+    ctx.beginPath();
+    ctx.moveTo(d.sx, d.sy);
+    ctx.lineTo(c.sx, c.sy);
+    ctx.lineTo(c0.sx, c0.sy);
+    ctx.lineTo(d0.sx, d0.sy);
+    ctx.closePath();
+    ctx.fill();
+    // 右側面（x+1 側）
+    const b0 = px(x + 1, y, bottom);
+    ctx.fillStyle = shade(sideColor, 0.65);
+    ctx.beginPath();
+    ctx.moveTo(b.sx, b.sy);
+    ctx.lineTo(c.sx, c.sy);
+    ctx.lineTo(c0.sx, c0.sy);
+    ctx.lineTo(b0.sx, b0.sy);
+    ctx.closePath();
+    ctx.fill();
+    // 上面
+    ctx.fillStyle = topColor;
+    ctx.beginPath();
+    ctx.moveTo(a.sx, a.sy);
+    ctx.lineTo(b.sx, b.sy);
+    ctx.lineTo(c.sx, c.sy);
+    ctx.lineTo(d.sx, d.sy);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // 奥から手前へ
+  for (let s = 0; s <= W + H - 2; s++) {
+    for (let x = 0; x < W; x++) {
+      const y = s - x;
+      if (y < 0 || y >= H) continue;
+      const t = tileFromChar(game.tiles.charAt(y * W + x));
+      const top = heightOf(t);
+      if (top === 0) continue;
+      if (t === 'wall' || t === 'door') drawBlock(x, y, 0, top, t === 'door' ? '#a86c3a' : th.wallEdge, t === 'door' ? '#8b5a2b' : th.wall);
+      else if (t === 'water') drawBlock(x, y, 0, top, '#64b5f6', '#1e88e5');
+      else if (t === 'cloud') drawBlock(x, y, 2, top, '#ffffff', '#e3f2fd');
+      else drawBlock(x, y, 0, 1, (x + y) % 2 === 0 ? th.floor : th.floorAlt, th.ground);
+      // 上に載る物
+      const def = tileDef(t);
+      let emoji = '';
+      if (t === 'start') emoji = showStart ? game.hero : '';
+      else if (t !== 'ground' && t !== 'wall' && t !== 'door' && t !== 'water' && t !== 'cloud' && t !== 'empty') emoji = def.emoji;
+      if (emoji) {
+        const c = px(x + 0.5, y + 0.5, top);
+        ctx.font = `${Math.round(tw * 0.55)}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(emoji, c.sx, c.sy - tw * 0.3);
+      }
+    }
+  }
+}
+
 /** エディタ用：静止したマップを描く（サムネイルにも使う） */
 export function renderStatic(ctx: CanvasRenderingContext2D, game: GameData, w: number, h: number, showStart = true): void {
+  if (game.rules.mode === '3d') {
+    renderIsometric(ctx, game, w, h, showStart);
+    return;
+  }
   const tile = Math.min(w / game.width, h / game.height);
   const offX = (w - game.width * tile) / 2;
   const offY = (h - game.height * tile) / 2;

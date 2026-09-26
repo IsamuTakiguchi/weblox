@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sfx } from '../audio';
 import { fireConfetti, toast } from '../components/feedback';
-import { GameCanvas } from '../components/GameCanvas';
+import { AnyGameCanvas } from '../components/AnyGameCanvas';
 import { GridEditor } from '../components/GridEditor';
 import { Modal } from '../components/ui';
-import { autoFix, createGame, defaultRules, emptyTiles, fillFloor, GRID_SIZES, randomLevel, resizeTiles, validateGame } from '../engine/level';
+import { autoFix, createGame, defaultRules, emptyTiles, fillAll, fillFloor, GRID_SIZES, randomLevel, resizeTiles, validateGame } from '../engine/level';
 import { HEROES, THEMES } from '../engine/themes';
 import { PRO_PALETTE, tileDef } from '../engine/tiles';
 import type { GameData, GameMode, GameResult, TileId, WinCondition } from '../engine/types';
@@ -93,6 +93,7 @@ export function StudioPage({ id }: { id?: string }) {
   const setMode = (mode: GameMode) => {
     let tiles = game.tiles;
     if (mode === 'platformer' && game.rules.mode !== 'platformer') tiles = fillFloor(tiles, game.width, game.height);
+    if (mode === '3d' && game.rules.mode !== '3d') tiles = fillAll(tiles, 'ground');
     update({ tiles, rules: { ...game.rules, mode } });
   };
 
@@ -277,7 +278,11 @@ export function StudioPage({ id }: { id?: string }) {
               <button className={game.rules.mode === 'platformer' ? 'on' : ''} onClick={() => setMode('platformer')}>
                 🦘 ジャンプ（横から）
               </button>
+              <button className={game.rules.mode === '3d' ? 'on' : ''} onClick={() => setMode('3d')}>
+                🧊 3D（立体）
+              </button>
             </div>
+            {game.rules.mode === '3d' && <span className="hint">3D では「けす」で空けたマスが奈落になります。かべは高さ 3、くもは浮いた足場です。</span>}
           </div>
           <div className="field">
             <label>クリア条件</label>
@@ -288,7 +293,7 @@ export function StudioPage({ id }: { id?: string }) {
             </select>
           </div>
           {range('はやさ', 'speed', 1, 5)}
-          {game.rules.mode === 'platformer' && range('ジャンプ力', 'jump', 1, 5)}
+          {game.rules.mode !== 'topdown' && range('ジャンプ力', 'jump', 1, 5)}
           {range('ライフ', 'lives', 1, 9)}
           {range('てきのはやさ', 'enemySpeed', 0, 5, '0で止まる')}
           <div className="field">
@@ -360,7 +365,7 @@ export function StudioPage({ id }: { id?: string }) {
               ✖ 閉じる
             </button>
           </div>
-          <GameCanvas game={prepared} onFinish={onTestFinish} resetKey={testKey} />
+          <AnyGameCanvas game={prepared} onFinish={onTestFinish} resetKey={testKey} />
         </Modal>
       )}
     </main>

@@ -18,8 +18,8 @@ export type TileId =
   | 'goal'
   | 'start';
 
-/** 上から見る（あるく）か、横から見る（ジャンプ）か */
-export type GameMode = 'topdown' | 'platformer';
+/** 上から見る（あるく）か、横から見る（ジャンプ）か、立体（3D） */
+export type GameMode = 'topdown' | 'platformer' | '3d';
 
 /** クリア条件 */
 export type WinCondition = 'goal' | 'coins' | 'both';

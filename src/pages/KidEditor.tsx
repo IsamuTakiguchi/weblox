@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sfx, speak } from '../audio';
 import { fireConfetti, toast } from '../components/feedback';
-import { GameCanvas } from '../components/GameCanvas';
+import { AnyGameCanvas } from '../components/AnyGameCanvas';
 import { GridEditor } from '../components/GridEditor';
 import { Modal, SpeakButton, Thumbnail } from '../components/ui';
-import { autoFix, createGame, defaultRules, emptyTiles, fillFloor, KID_WIDTH, randomLevel } from '../engine/level';
+import { autoFix, createGame, defaultRules, emptyTiles, fillAll, fillFloor, KID_WIDTH, randomLevel } from '../engine/level';
 import { HEROES, THEMES } from '../engine/themes';
 import { KID_PALETTE, tileDef } from '../engine/tiles';
 import type { GameData, GameResult, TileId } from '../engine/types';
@@ -69,14 +69,16 @@ export function KidEditorPage({ id }: { id?: string }) {
   const update = useCallback((patch: Partial<GameData>) => setGame((g) => ({ ...g, ...patch })), []);
   const onTiles = useCallback((tiles: string) => setGame((g) => ({ ...g, tiles })), []);
 
-  const setMode = (mode: 'topdown' | 'platformer') => {
+  const setMode = (mode: 'topdown' | 'platformer' | '3d') => {
     sfx.tap();
     setGame((g) => {
       let tiles = g.tiles;
       if (mode === 'platformer' && g.rules.mode !== 'platformer') tiles = fillFloor(tiles, g.width, g.height);
+      // 3D では空のマスが奈落になるので、まず全部に床を敷く
+      if (mode === '3d' && g.rules.mode !== '3d') tiles = fillAll(tiles, 'ground');
       return { ...g, tiles, rules: { ...g.rules, mode } };
     });
-    speak(mode === 'platformer' ? 'ジャンプで あそぶ' : 'あるいて あそぶ');
+    speak(mode === 'platformer' ? 'ジャンプで あそぶ' : mode === '3d' ? 'りったいの せかいで あそぶ。けすと あなが あくよ' : 'あるいて あそぶ');
   };
 
   const randomize = () => {
@@ -87,7 +89,10 @@ export function KidEditorPage({ id }: { id?: string }) {
   const clearAll = () => {
     if (!confirm('ぜんぶ けしますか？')) return;
     sfx.erase();
-    update({ tiles: game.rules.mode === 'platformer' ? fillFloor(emptyTiles(game.width, game.height), game.width, game.height) : emptyTiles(game.width, game.height) });
+    const blank = emptyTiles(game.width, game.height);
+    update({
+      tiles: game.rules.mode === 'platformer' ? fillFloor(blank, game.width, game.height) : game.rules.mode === '3d' ? fillAll(blank, 'ground') : blank,
+    });
   };
 
   const prepared = useMemo(() => autoFix(game), [game]);
@@ -209,7 +214,7 @@ export function KidEditorPage({ id }: { id?: string }) {
           <div className="kid-title" style={{ marginTop: 28 }}>
             <span>どうやって あそぶ？</span>
           </div>
-          <div className="choice-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(140px, 220px))', justifyContent: 'center' }}>
+          <div className="choice-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(120px, 200px))', justifyContent: 'center' }}>
             <button className={`choice ${game.rules.mode === 'topdown' ? 'selected' : ''}`} onClick={() => setMode('topdown')}>
               <span className="choice-emoji">🚶</span>
               <span>あるく</span>
@@ -219,6 +224,11 @@ export function KidEditorPage({ id }: { id?: string }) {
               <span className="choice-emoji">🦘</span>
               <span>ジャンプ</span>
               <span className="hint">よこから みる</span>
+            </button>
+            <button className={`choice ${game.rules.mode === '3d' ? 'selected' : ''}`} onClick={() => setMode('3d')}>
+              <span className="choice-emoji">🧊</span>
+              <span>3D</span>
+              <span className="hint">りったいの せかい</span>
             </button>
           </div>
           <div className="kid-actions">
@@ -300,8 +310,8 @@ export function KidEditorPage({ id }: { id?: string }) {
                       }}
                       aria-pressed={tool === t}
                     >
-                      <span className="palette-emoji">{t === 'start' ? game.hero : d.emoji}</span>
-                      <span>{d.label}</span>
+                      <span className="palette-emoji">{t === 'start' ? game.hero : t === 'empty' && game.rules.mode === '3d' ? '🕳️' : d.emoji}</span>
+                      <span>{t === 'empty' && game.rules.mode === '3d' ? 'あな' : d.label}</span>
                     </button>
                   );
                 })}
@@ -413,7 +423,7 @@ export function KidEditorPage({ id }: { id?: string }) {
               ✖ もどる
             </button>
           </div>
-          <GameCanvas game={prepared} onFinish={onTestFinish} resetKey={testKey} />
+          <AnyGameCanvas game={prepared} onFinish={onTestFinish} resetKey={testKey} />
         </Modal>
       )}
     </main>

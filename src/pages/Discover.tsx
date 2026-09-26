@@ -45,6 +45,9 @@ export function DiscoverPage() {
           <button className={filter === 'platformer' ? 'on' : ''} onClick={() => setFilter('platformer')}>
             🦘 ジャンプ
           </button>
+          <button className={filter === '3d' ? 'on' : ''} onClick={() => setFilter('3d')}>
+            🧊 3D
+          </button>
         </div>
         <div className="seg" role="tablist" aria-label="ならびかえ">
           <button className={sort === 'popular' ? 'on' : ''} onClick={() => setSort('popular')}>

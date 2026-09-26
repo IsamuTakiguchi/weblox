@@ -52,6 +52,7 @@ export type RuntimeEvent =
   | { type: 'portal' }
   | { type: 'spring' }
   | { type: 'stomp' }
+  | { type: 'jump' }
   | { type: 'hurt' }
   | { type: 'win' }
   | { type: 'lose' };

@@ -20,10 +20,10 @@ export interface TileDef {
 }
 
 export const TILES: readonly TileDef[] = [
-  { id: 'empty', char: '.', label: 'けす', hint: 'マスを空にします', emoji: '🧽', kid: true, solid: false, deadly: false, pickup: false },
+  { id: 'empty', char: '.', label: 'けす', hint: 'マスを空にします（3D では奈落になる）', emoji: '🧽', kid: true, solid: false, deadly: false, pickup: false },
   { id: 'ground', char: '#', label: 'じめん', hint: '立てる床・ブロック', emoji: '🟩', kid: true, solid: true, deadly: false, pickup: false },
-  { id: 'wall', char: 'W', label: 'かべ', hint: '通れないブロック', emoji: '🧱', kid: true, solid: true, deadly: false, pickup: false },
-  { id: 'cloud', char: '~', label: 'くも', hint: '下からすり抜けられる足場（ジャンプモード）', emoji: '☁️', kid: false, solid: true, deadly: false, pickup: false },
+  { id: 'wall', char: 'W', label: 'かべ', hint: '通れないブロック（3D では高さ 3）', emoji: '🧱', kid: true, solid: true, deadly: false, pickup: false },
+  { id: 'cloud', char: '~', label: 'くも', hint: '下からすり抜けられる足場（ジャンプ・3D）', emoji: '☁️', kid: false, solid: true, deadly: false, pickup: false },
   { id: 'coin', char: 'o', label: 'コイン', hint: '取ると 1 点', emoji: '🪙', kid: true, solid: false, deadly: false, pickup: true },
   { id: 'gem', char: '*', label: 'ほうせき', hint: '取ると 5 点', emoji: '💎', kid: false, solid: false, deadly: false, pickup: true },
   { id: 'heart', char: '+', label: 'ハート', hint: 'ライフが 1 ふえる', emoji: '❤️', kid: false, solid: false, deadly: false, pickup: true },

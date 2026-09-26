@@ -139,10 +139,12 @@ export function autoFix(game: GameData): GameData {
   const firstEmpty = (fromEnd: boolean): { x: number; y: number } | null => {
     const order = [...Array(width * height).keys()];
     if (fromEnd) order.reverse();
+    // 3D モードは空マス = 奈落なので、床（ground）の上に置く
+    const placeable: TileId = rules.mode === '3d' ? 'ground' : 'empty';
     for (const i of order) {
       const x = i % width;
       const y = Math.floor(i / width);
-      if (tileFromChar(tiles.charAt(i)) !== 'empty') continue;
+      if (tileFromChar(tiles.charAt(i)) !== placeable) continue;
       // ジャンプモードなら足元に床があるマスを優先
       if (rules.mode === 'platformer') {
         const below = y + 1 < height ? tileFromChar(tiles.charAt((y + 1) * width + x)) : 'empty';
@@ -150,9 +152,10 @@ export function autoFix(game: GameData): GameData {
       }
       return { x, y };
     }
-    // 見つからなければ床の条件をゆるめる
+    // 見つからなければ条件をゆるめる
     for (const i of order) {
-      if (tileFromChar(tiles.charAt(i)) === 'empty') return { x: i % width, y: Math.floor(i / width) };
+      const t = tileFromChar(tiles.charAt(i));
+      if (t === 'empty' || t === 'ground') return { x: i % width, y: Math.floor(i / width) };
     }
     return null;
   };
@@ -190,6 +193,11 @@ export function autoFix(game: GameData): GameData {
   return { ...game, tiles, rules, updatedAt: Date.now() };
 }
 
+/** 3D モード用に、空のマスをすべて床で埋める（空 = 奈落なので） */
+export function fillAll(tiles: string, tile: TileId = 'ground'): string {
+  return tiles.split('.').join(charFromTile(tile));
+}
+
 /** ジャンプモード用に、いちばん下の行を床で埋める */
 export function fillFloor(tiles: string, width: number, height: number): string {
   let out = tiles.slice(0, width * (height - 1));
@@ -209,7 +217,47 @@ export function randomLevel(width: number, height: number, mode: GameRules['mode
   const at = (x: number, y: number) => getTile({ width, height, tiles }, x, y);
   const pick = (n: number) => Math.floor(rng() * n);
 
-  if (mode === 'platformer') {
+  if (mode === '3d') {
+    // 全面床から始めて、穴・壁・浮き足場を配置するオビー風
+    tiles = fillAll(tiles, 'ground');
+    const isCorner = (x: number, y: number) => (x <= 2 && y <= 2) || (x >= width - 3 && y >= height - 3);
+    const holes = Math.floor(width * height * 0.12);
+    for (let i = 0; i < holes; i++) {
+      const x = pick(width);
+      const y = pick(height);
+      if (isCorner(x, y)) continue;
+      put(x, y, 'empty');
+    }
+    const walls = Math.floor(width * height * 0.06);
+    for (let i = 0; i < walls; i++) {
+      const x = pick(width);
+      const y = pick(height);
+      if (isCorner(x, y)) continue;
+      put(x, y, 'wall');
+    }
+    for (let i = 0; i < 3; i++) {
+      const x = 2 + pick(Math.max(1, width - 4));
+      const y = 1 + pick(Math.max(1, height - 2));
+      if (!isCorner(x, y)) put(x, y, 'cloud');
+    }
+    for (let i = 0; i < 7; i++) {
+      const x = pick(width);
+      const y = pick(height);
+      if (at(x, y) === 'ground') put(x, y, 'coin');
+    }
+    for (let i = 0; i < 2; i++) {
+      const x = 3 + pick(Math.max(1, width - 6));
+      const y = 1 + pick(Math.max(1, height - 2));
+      if (at(x, y) === 'ground') put(x, y, 'enemy');
+    }
+    for (let i = 0; i < 3; i++) {
+      const x = pick(width);
+      const y = pick(height);
+      if (at(x, y) === 'ground') put(x, y, 'flower');
+    }
+    put(1, 1, 'start');
+    put(width - 2, height - 2, 'goal');
+  } else if (mode === 'platformer') {
     tiles = fillFloor(tiles, width, height);
     // 浮いている足場をいくつか
     const platforms = 2 + pick(3);
