@@ -1,0 +1,82 @@
+/** タイル（マス）の種類 */
+export type TileId =
+  | 'empty'
+  | 'ground'
+  | 'wall'
+  | 'cloud'
+  | 'coin'
+  | 'gem'
+  | 'heart'
+  | 'enemy'
+  | 'spike'
+  | 'water'
+  | 'spring'
+  | 'key'
+  | 'door'
+  | 'portal'
+  | 'flower'
+  | 'goal'
+  | 'start';
+
+/** 上から見る（あるく）か、横から見る（ジャンプ）か */
+export type GameMode = 'topdown' | 'platformer';
+
+/** クリア条件 */
+export type WinCondition = 'goal' | 'coins' | 'both';
+
+export type ThemeId = 'meadow' | 'space' | 'ocean' | 'candy' | 'volcano' | 'snow';
+
+export interface GameRules {
+  mode: GameMode;
+  /** 1〜5 */
+  speed: number;
+  /** 1〜5 （platformer のみ） */
+  jump: number;
+  /** 1〜9 */
+  lives: number;
+  /** 秒。0 なら制限なし */
+  timeLimit: number;
+  win: WinCondition;
+  /** 0〜5。0 なら敵は動かない */
+  enemySpeed: number;
+}
+
+export interface GameData {
+  id: string;
+  version: 1;
+  title: string;
+  description: string;
+  author: string;
+  authorAvatar: string;
+  theme: ThemeId;
+  /** 主人公の絵文字 */
+  hero: string;
+  width: number;
+  height: number;
+  /** 行優先。1 文字 = 1 マス（tiles.ts の charMap 参照） */
+  tiles: string;
+  rules: GameRules;
+  createdAt: number;
+  updatedAt: number;
+  /** かんたんモードで作られたか */
+  kidMode: boolean;
+}
+
+export interface PublishedGame extends GameData {
+  publishedAt: number;
+  plays: number;
+  likes: number;
+  /** 同梱サンプルなら true（削除不可） */
+  featured?: boolean;
+}
+
+export type GameOutcome = 'win' | 'lose';
+
+export interface GameResult {
+  outcome: GameOutcome;
+  score: number;
+  coins: number;
+  totalCoins: number;
+  timeMs: number;
+  livesLeft: number;
+}
