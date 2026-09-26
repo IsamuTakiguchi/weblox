@@ -68,6 +68,31 @@ jobs:
           sleep 10
           gh api -X POST "repos/${GITHUB_REPOSITORY}/pages/builds" || echo "Pages build request skipped"
 
+      # Pages 側のビルドが終わるまで待ち、結果（と失敗時の理由）をログに出す
+      - name: Wait for Pages build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "--- Pages site ---"
+          gh api "repos/${GITHUB_REPOSITORY}/pages" || echo "(pages info unavailable)"
+          for i in $(seq 1 30); do
+            sleep 10
+            json=$(gh api "repos/${GITHUB_REPOSITORY}/pages/builds/latest" 2>/dev/null || echo '{}')
+            status=$(echo "$json" | jq -r '.status // "unknown"')
+            echo "[$i] status=$status"
+            if [ "$status" = "built" ]; then
+              echo "✅ Pages build finished"
+              exit 0
+            fi
+            if [ "$status" = "errored" ]; then
+              echo "❌ Pages build failed:"
+              echo "$json" | jq '.error'
+              exit 1
+            fi
+          done
+          echo "⚠️ Pages build did not finish in time (status=$status)"
+          echo "$json"
+
       - name: Show URL
         run: |
           owner="${GITHUB_REPOSITORY%%/*}"
