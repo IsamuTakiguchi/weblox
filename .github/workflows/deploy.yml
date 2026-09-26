@@ -1,4 +1,9 @@
 # main に push されるたびに、テスト → ビルド → GitHub Pages へ自動デプロイする
+#
+# 方式: ビルド結果を gh-pages ブランチに push する。
+# gh-pages ブランチが作られると GitHub Pages は自動で有効になるため、
+# リポジトリ設定を手で触る必要がない（GITHUB_TOKEN には Pages サイトを
+# 新規作成する権限がないので、actions/deploy-pages 方式は初回に失敗する）。
 name: Deploy to GitHub Pages
 
 on:
@@ -7,18 +12,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write # gh-pages ブランチへの push
+  pages: write # Pages のビルド要求
 
-# 同時に複数のデプロイが走らないようにする（進行中のものはキャンセルしない）
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Test & Build
+  deploy:
+    name: Test, Build & Deploy
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -42,28 +45,32 @@ jobs:
       - name: Build
         # vite.config.ts が GITHUB_REPOSITORY からリポジトリ名を読み取り、
         # https://<owner>.github.io/<repo>/ 用の base を自動設定する
-        run: npm run build
+        run: |
+          npm run build
+          touch dist/.nojekyll
 
-      # GitHub Pages がまだ有効になっていなければ、この Action が自動で有効化する
-      # （Source: GitHub Actions）。手動での設定は不要。
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
+      - name: Publish to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          enablement: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: 'deploy: ${{ github.sha }}'
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
+      # 初回は gh-pages ブランチの作成で Pages が有効化されるだけで
+      # ビルドが走らないことがあるため、明示的にビルドを要求する
+      - name: Request Pages build
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 10
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/pages/builds" || echo "Pages build request skipped"
 
-  deploy:
-    name: Deploy
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Show URL
+        run: |
+          owner="${GITHUB_REPOSITORY%%/*}"
+          repo="${GITHUB_REPOSITORY##*/}"
+          echo "### 🚀 Deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://${owner,,}.github.io/${repo}/" >> "$GITHUB_STEP_SUMMARY"
