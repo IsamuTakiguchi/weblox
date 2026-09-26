@@ -115,6 +115,14 @@ describe('Sim3D', () => {
     expect(stomp.lives).toBe(3);
   });
 
+  it('ignores a negative time step', () => {
+    const sim = new Sim3D(world(['P###G']));
+    sim.step(-0.2, still, false);
+    expect(sim.player.y).toBe(1);
+    expect(sim.player.vy).toBe(0);
+    expect(sim.time).toBe(0);
+  });
+
   it('time limit ends the game', () => {
     const sim = new Sim3D(world(['P###G'], { timeLimit: 1 }));
     run(sim, still, 2);

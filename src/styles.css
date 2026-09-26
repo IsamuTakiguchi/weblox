@@ -101,15 +101,10 @@ textarea:focus {
 }
 
 .brand-logo {
-  display: inline-grid;
-  place-items: center;
+  display: block;
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: #fff;
-  color: var(--bg);
-  font-size: 22px;
-  transform: rotate(10deg);
 }
 
 .nav {

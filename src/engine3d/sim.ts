@@ -181,7 +181,7 @@ export class Sim3D {
    */
   step(dt: number, move: { x: number; z: number }, jump: boolean): void {
     if (this.finished) return;
-    dt = Math.min(dt, 1 / 30);
+    dt = Math.max(0, Math.min(dt, 1 / 30));
     this.time += dt;
     this.elapsed += dt;
     const { rules } = this.game;

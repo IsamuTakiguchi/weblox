@@ -68,6 +68,8 @@ export function GameCanvas3D({ game, onFinish, resetKey = 0, autoStart = false }
 
   useEffect(() => {
     simRef.current = new Sim3D(game);
+    // デバッグ用（開発者ツールから状態を見られるようにする）
+    (window as unknown as { __weblox3d?: Sim3D }).__weblox3d = simRef.current;
     finishedRef.current = false;
     keysRef.current = emptyKeys();
     camRef.current = { yaw: Math.PI, pitch: 0.55, distance: 9 };
@@ -151,7 +153,8 @@ export function GameCanvas3D({ game, onFinish, resetKey = 0, autoStart = false }
       raf = requestAnimationFrame(loop);
       const s = simRef.current;
       if (!s) return;
-      const dt = Math.min(0.05, (now - last) / 1000);
+      // rAF のタイムスタンプは初期化時刻より前のことがあるため、0 未満にならないようにする
+      const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
       last = now;
       const k = keysRef.current;
       const cam = camRef.current;

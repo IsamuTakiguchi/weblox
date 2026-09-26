@@ -106,7 +106,8 @@ export function GameCanvas({ game, onFinish, resetKey = 0, autoStart = false }: 
       raf = requestAnimationFrame(loop);
       const rt = rtRef.current;
       if (!rt) return;
-      const dt = Math.min(0.05, (now - last) / 1000);
+      // rAF のタイムスタンプは初期化時刻より前のことがあるため、0 未満にならないようにする
+      const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
       last = now;
       if (started && !rt.finished) rt.step(dt, inputRef.current);
       else if (!started) rt.time += dt; // アニメだけ動かす

@@ -30,7 +30,7 @@ export function Header({ route }: { route: Route }) {
   return (
     <header className="header">
       <a className="brand" href="#/" aria-label="Weblox ホーム">
-        <span className="brand-logo">▣</span>
+        <img className="brand-logo" src={`${import.meta.env.BASE_URL}icons/logo.svg`} alt="" width={34} height={34} />
         <span className="brand-name">Weblox</span>
       </a>
       <nav className="nav" aria-label="メインメニュー">
