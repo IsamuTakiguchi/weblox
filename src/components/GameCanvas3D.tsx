@@ -4,12 +4,16 @@ import type { GameData, GameResult } from '../engine/types';
 import { Renderer3D, type CameraState } from '../engine3d/render3d';
 import { Sim3D } from '../engine3d/sim';
 import { getState } from '../store/store';
+import type { HudState } from './hud';
+import { TouchControls } from './TouchControls';
 
 interface Props {
   game: GameData;
   onFinish: (result: GameResult) => void;
+  onHud?: (hud: HudState) => void;
   resetKey?: number;
   autoStart?: boolean;
+  paused?: boolean;
 }
 
 interface Keys {
@@ -20,9 +24,11 @@ interface Keys {
   jump: boolean;
   camLeft: boolean;
   camRight: boolean;
+  zoomIn: boolean;
+  zoomOut: boolean;
 }
 
-const emptyKeys = (): Keys => ({ forward: false, back: false, left: false, right: false, jump: false, camLeft: false, camRight: false });
+const emptyKeys = (): Keys => ({ forward: false, back: false, left: false, right: false, jump: false, camLeft: false, camRight: false, zoomIn: false, zoomOut: false });
 
 function keyFor(code: string): keyof Keys | null {
   switch (code) {
@@ -46,23 +52,35 @@ function keyFor(code: string): keyof Keys | null {
       return 'camLeft';
     case 'KeyE':
       return 'camRight';
+    case 'KeyI':
+      return 'zoomIn';
+    case 'KeyO':
+      return 'zoomOut';
     default:
       return null;
   }
 }
 
+const MIN_DIST = 3;
+const MAX_DIST = 18;
+
 /**
- * 3D モードのプレイ画面。三人称視点で、Roblox と同じく
- * WASD / 矢印で移動、スペースでジャンプ、ドラッグ（または Q/E）でカメラ回転。
+ * 3D モードのプレイ画面。Roblox と同じ操作：
+ *  PC   : WASD / 矢印で移動、スペースでジャンプ、マウスドラッグでカメラ、ホイールか I / O でズーム
+ *  スマホ: 左側をなぞってジョイスティック、右側をなぞってカメラ、ピンチでズーム、右下ボタンでジャンプ
  */
-export function GameCanvas3D({ game, onFinish, resetKey = 0, autoStart = false }: Props) {
+export function GameCanvas3D({ game, onFinish, onHud, resetKey = 0, autoStart = false, paused = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const simRef = useRef<Sim3D | null>(null);
   const keysRef = useRef<Keys>(emptyKeys());
+  const stickRef = useRef({ x: 0, y: 0, jump: false });
   const camRef = useRef<CameraState>({ yaw: Math.PI, pitch: 0.55, distance: 9 });
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+  const onHudRef = useRef(onHud);
+  onHudRef.current = onHud;
   const [started, setStarted] = useState(autoStart);
-  const [hud, setHud] = useState({ lives: game.rules.lives, coins: 0, total: 0, score: 0, keys: 0, time: null as number | null });
   const [webglError, setWebglError] = useState(false);
   const finishedRef = useRef(false);
 
@@ -72,9 +90,10 @@ export function GameCanvas3D({ game, onFinish, resetKey = 0, autoStart = false }
     (window as unknown as { __weblox3d?: Sim3D }).__weblox3d = simRef.current;
     finishedRef.current = false;
     keysRef.current = emptyKeys();
+    stickRef.current = { x: 0, y: 0, jump: false };
     camRef.current = { yaw: Math.PI, pitch: 0.55, distance: 9 };
     const s = simRef.current;
-    setHud({ lives: s.lives, coins: 0, total: s.totalCoins, score: 0, keys: 0, time: s.remainingTime });
+    onHudRef.current?.({ lives: s.lives, coins: 0, total: s.totalCoins, score: 0, keys: 0, time: s.remainingTime });
     setStarted(autoStart);
   }, [game, resetKey, autoStart]);
 
@@ -118,34 +137,6 @@ export function GameCanvas3D({ game, onFinish, resetKey = 0, autoStart = false }
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
 
-    // ドラッグでカメラ回転
-    let dragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    const onDown = (e: PointerEvent) => {
-      dragging = true;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      canvas.setPointerCapture(e.pointerId);
-    };
-    const onMove = (e: PointerEvent) => {
-      if (!dragging) return;
-      const dx = e.clientX - lastX;
-      const dy = e.clientY - lastY;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      const cam = camRef.current;
-      cam.yaw -= dx * 0.008;
-      cam.pitch = Math.max(0.12, Math.min(1.25, cam.pitch + dy * 0.006));
-    };
-    const onUp = () => {
-      dragging = false;
-    };
-    canvas.addEventListener('pointerdown', onDown);
-    canvas.addEventListener('pointermove', onMove);
-    canvas.addEventListener('pointerup', onUp);
-    canvas.addEventListener('pointercancel', onUp);
-
     let raf = 0;
     let last = performance.now();
     let hudTick = 0;
@@ -157,22 +148,21 @@ export function GameCanvas3D({ game, onFinish, resetKey = 0, autoStart = false }
       const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
       last = now;
       const k = keysRef.current;
+      const st = stickRef.current;
       const cam = camRef.current;
       if (k.camLeft) cam.yaw += 2.2 * dt;
       if (k.camRight) cam.yaw -= 2.2 * dt;
-      if (started && !s.finished) {
+      if (k.zoomIn) cam.distance = Math.max(MIN_DIST, cam.distance - 8 * dt);
+      if (k.zoomOut) cam.distance = Math.min(MAX_DIST, cam.distance + 8 * dt);
+      if (started && !pausedRef.current && !s.finished) {
         // カメラ相対の移動方向をワールド座標に変換
-        const f = (k.forward ? 1 : 0) - (k.back ? 1 : 0);
-        const r = (k.right ? 1 : 0) - (k.left ? 1 : 0);
+        const f = (k.forward ? 1 : 0) - (k.back ? 1 : 0) + st.y;
+        const r = (k.right ? 1 : 0) - (k.left ? 1 : 0) + st.x;
         const fx = -Math.sin(cam.yaw);
         const fz = -Math.cos(cam.yaw);
         const rx = Math.cos(cam.yaw);
         const rz = -Math.sin(cam.yaw);
-        const wasOnGround = s.player.onGround;
-        s.step(dt, { x: fx * f + rx * r, z: fz * f + rz * r }, k.jump);
-        if (wasOnGround && !s.player.onGround && k.jump) {
-          /* ジャンプ音はイベント経由 */
-        }
+        s.step(dt, { x: fx * f + rx * r, z: fz * f + rz * r }, k.jump || st.jump);
       } else if (!started) {
         s.time += dt;
       }
@@ -185,7 +175,7 @@ export function GameCanvas3D({ game, onFinish, resetKey = 0, autoStart = false }
       hudTick += dt;
       if (hudTick > 0.1 || ev.length) {
         hudTick = 0;
-        setHud({ lives: s.lives, coins: s.coins, total: s.totalCoins, score: s.score, keys: s.keys, time: s.remainingTime });
+        onHudRef.current?.({ lives: s.lives, coins: s.coins, total: s.totalCoins, score: s.score, keys: s.keys, time: s.remainingTime });
       }
       if (s.finished && !finishedRef.current) {
         finishedRef.current = true;
@@ -197,94 +187,58 @@ export function GameCanvas3D({ game, onFinish, resetKey = 0, autoStart = false }
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      canvas.removeEventListener('pointerdown', onDown);
-      canvas.removeEventListener('pointermove', onMove);
-      canvas.removeEventListener('pointerup', onUp);
-      canvas.removeEventListener('pointercancel', onUp);
       renderer.dispose();
     };
   }, [started, onFinish, resetKey, game]);
 
-  const press = (k: keyof Keys, on: boolean) => (e: React.PointerEvent) => {
-    e.preventDefault();
-    if (on && !started) setStarted(true);
-    keysRef.current[k] = on;
-  };
-  const padBtn = (k: keyof Keys, label: string, cls = '') => (
-    <button
-      type="button"
-      className={`pad-btn ${cls}`}
-      onPointerDown={press(k, true)}
-      onPointerUp={press(k, false)}
-      onPointerLeave={press(k, false)}
-      onPointerCancel={press(k, false)}
-      onContextMenu={(e) => e.preventDefault()}
-      aria-label={label}
-    >
-      {label}
-    </button>
-  );
-  const hearts = '❤️'.repeat(Math.max(0, Math.min(9, hud.lives)));
-
   return (
-    <div className="play-wrap">
-      <div className="hud">
-        <span className="hud-item" title="ライフ">
-          {hearts || '💔'}
-        </span>
-        <span className="hud-item" title="コイン">
-          🪙 {hud.coins}/{hud.total}
-        </span>
-        <span className="hud-item" title="スコア">
-          ⭐ {hud.score}
-        </span>
-        {hud.keys > 0 && <span className="hud-item">🔑 {hud.keys}</span>}
-        {hud.time !== null && (
-          <span className={`hud-item ${hud.time < 10 ? 'hud-danger' : ''}`} title="のこり時間">
-            ⏱ {Math.ceil(hud.time)}
-          </span>
-        )}
-        <span className="hud-item hint" style={{ marginLeft: 'auto', fontWeight: 600 }}>
-          🧊 3D
-        </span>
-      </div>
-      <div className="canvas-wrap canvas-3d" ref={wrapRef}>
-        <canvas ref={canvasRef} className="game-canvas" />
-        {webglError && (
-          <div className="start-overlay">
-            <span className="start-label">3D を表示できません</span>
-            <span className="start-help">このブラウザでは WebGL が使えないようです</span>
-          </div>
-        )}
-        {!started && !webglError && (
-          <button
-            type="button"
-            className="start-overlay"
-            onClick={() => {
-              sfx.tap();
-              setStarted(true);
-            }}
-          >
-            <span className="start-big">▶</span>
-            <span className="start-label">スタート！</span>
-            <span className="start-help">WASD / ↑↓←→ でうごく　スペース でジャンプ　ドラッグ / Q E でカメラ</span>
-          </button>
-        )}
-      </div>
-      <div className="pad" aria-label="そうさボタン">
-        <div className="pad-cross">
-          {padBtn('camLeft', '↶', 'pad-cam')}
-          {padBtn('forward', '▲')}
-          {padBtn('camRight', '↷', 'pad-cam')}
-          {padBtn('left', '◀')}
-          <span className="pad-center" />
-          {padBtn('right', '▶')}
-          <span />
-          {padBtn('back', '▼')}
-          <span />
+    <div className="canvas-wrap canvas-3d" ref={wrapRef}>
+      <canvas ref={canvasRef} className="game-canvas" />
+      <TouchControls
+        showJump
+        handlers={{
+          onAnyInput: () => {
+            if (!started) setStarted(true);
+          },
+          onMove: (x, y) => {
+            stickRef.current.x = x;
+            stickRef.current.y = y;
+          },
+          onJump: (down) => {
+            stickRef.current.jump = down;
+          },
+          onLook: (dx, dy) => {
+            const cam = camRef.current;
+            cam.yaw -= dx * 0.008;
+            cam.pitch = Math.max(0.12, Math.min(1.25, cam.pitch + dy * 0.006));
+          },
+          onZoom: (factor) => {
+            const cam = camRef.current;
+            cam.distance = Math.max(MIN_DIST, Math.min(MAX_DIST, cam.distance / factor));
+          },
+        }}
+      />
+      {webglError && (
+        <div className="start-overlay">
+          <span className="start-label">3D を表示できません</span>
+          <span className="start-help">このブラウザでは WebGL が使えないようです</span>
         </div>
-        <div className="pad-group">{padBtn('jump', '⤒', 'pad-jump')}</div>
-      </div>
+      )}
+      {!started && !webglError && (
+        <button
+          type="button"
+          className="start-overlay"
+          onPointerDown={() => {
+            sfx.tap();
+            setStarted(true);
+          }}
+          onClick={() => setStarted(true)}
+        >
+          <span className="start-big">▶</span>
+          <span className="start-label">タップで スタート！</span>
+          <span className="start-help">WASD でうごく　スペース でジャンプ　ドラッグ でカメラ　スマホは左をなぞってうごき、右をなぞってカメラ</span>
+        </button>
+      )}
     </div>
   );
 }

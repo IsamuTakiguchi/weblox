@@ -4,16 +4,18 @@ import { Header } from './components/ui';
 import { AvatarPage } from './pages/Avatar';
 import { CreatePage } from './pages/Create';
 import { DiscoverPage } from './pages/Discover';
+import { GameDetailPage } from './pages/GameDetail';
 import { HelpPage } from './pages/Help';
 import { HomePage } from './pages/Home';
 import { KidEditorPage } from './pages/KidEditor';
 import { MePage } from './pages/Me';
 import { PlayPage, SharedPage } from './pages/Play';
 import { StudioPage } from './pages/Studio';
-import { useRoute } from './router';
+import { isImmersive, useRoute } from './router';
 
 export function App() {
   const route = useRoute();
+  const immersive = isImmersive(route);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -27,11 +29,14 @@ export function App() {
     case 'discover':
       page = <DiscoverPage />;
       break;
+    case 'game':
+      page = <GameDetailPage id={route.id} />;
+      break;
     case 'play':
       page = <PlayPage id={route.id} />;
       break;
     case 'shared':
-      page = <SharedPage code={route.code} />;
+      page = <SharedPage code={route.code} play={route.play} />;
       break;
     case 'create':
       page = <CreatePage />;
@@ -55,11 +60,13 @@ export function App() {
 
   return (
     <>
-      <Header route={route} />
+      {!immersive && <Header route={route} />}
       {page}
-      <footer className="hint" style={{ textAlign: 'center', padding: '16px 0 28px' }}>
-        <a href="#/help">❓ あそびかた・つくりかた</a> · Weblox はブラウザだけで動く、こどものためのゲームづくりアプリです
-      </footer>
+      {!immersive && (
+        <footer className="hint" style={{ textAlign: 'center', padding: '16px 0 28px' }}>
+          <a href="#/help">❓ あそびかた・つくりかた</a> · Weblox はブラウザだけで動く、こどものためのゲームづくりアプリです
+        </footer>
+      )}
       <ToastHost />
       <ConfettiHost />
     </>

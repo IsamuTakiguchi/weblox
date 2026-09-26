@@ -775,16 +775,45 @@ textarea:focus {
   gap: 8px;
 }
 
-.hud {
+/* ---------- Roblox 風トップバー ---------- */
+
+.topbar {
   display: flex;
-  gap: 14px;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 12px;
   background: var(--card);
   border: 1px solid var(--line);
   font-weight: 800;
   font-size: 16px;
+  min-height: 44px;
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+.menu-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  font-size: 20px;
+  color: var(--text);
+}
+
+.menu-btn img {
+  display: block;
+  border-radius: 7px;
+}
+
+.menu-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .hud-danger {
@@ -807,6 +836,16 @@ textarea:focus {
   overflow: hidden;
   border: 1px solid var(--line);
   background: #000;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.loading-3d {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-weight: 800;
 }
 
 .game-canvas {
@@ -815,9 +854,305 @@ textarea:focus {
   height: 100%;
 }
 
+.canvas-3d {
+  cursor: grab;
+}
+
+.canvas-3d:active {
+  cursor: grabbing;
+}
+
+/* ---------- 全画面プレイ（Roblox でゲームに入った状態） ---------- */
+
+body.immersive-open {
+  overflow: hidden;
+}
+
+.immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  padding-top: env(safe-area-inset-top);
+}
+
+.immersive .play-wrap {
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+}
+
+.immersive .topbar {
+  position: absolute;
+  top: calc(6px + env(safe-area-inset-top));
+  left: 8px;
+  right: 8px;
+  z-index: 2;
+  background: rgba(10, 14, 24, 0.55);
+  backdrop-filter: blur(8px);
+  border-color: rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+.immersive .topbar > * {
+  pointer-events: auto;
+}
+
+.immersive .canvas-wrap {
+  flex: 1;
+  aspect-ratio: auto;
+  max-height: none;
+  height: 100%;
+  border-radius: 0;
+  border: none;
+}
+
+/* ---------- タッチ操作（ジョイスティック・ジャンプ・カメラ） ---------- */
+
+.touch-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  touch-action: none;
+}
+
+.stick-base,
+.stick-knob {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: none;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.stick-base {
+  width: 104px;
+  height: 104px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.stick-knob {
+  width: 52px;
+  height: 52px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.jump-btn {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.22);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  color: #fff;
+  backdrop-filter: blur(4px);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 2;
+  transition: transform 0.06s ease, background 0.1s ease;
+}
+
+.jump-btn:active {
+  transform: scale(0.94);
+  background: rgba(0, 208, 132, 0.6);
+}
+
+/* マウスのある PC ではジャンプボタンを小さめに（キーボードが主） */
+@media (hover: hover) and (pointer: fine) {
+  .jump-btn {
+    width: 60px;
+    height: 60px;
+    opacity: 0.7;
+  }
+}
+
+/* ---------- ポーズメニュー ---------- */
+
+.pause-menu {
+  text-align: center;
+}
+
+.pause-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.pause-head img {
+  border-radius: 10px;
+}
+
+.pause-head h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.pause-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 320px;
+  margin: 0 auto 18px;
+}
+
+.pause-help {
+  text-align: left;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.pause-help h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.pause-help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  font-size: 14px;
+}
+
+.pause-help ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.pause-help li {
+  margin: 4px 0;
+}
+
+.pause-help kbd {
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-family: inherit;
+  color: var(--text);
+}
+
+/* ---------- ゲーム詳細ページ ---------- */
+
+.detail {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .detail {
+    grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr);
+  }
+}
+
+.detail-thumb {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  aspect-ratio: 16 / 10;
+  box-shadow: var(--shadow);
+}
+
+.detail-thumb .thumb {
+  width: 100%;
+  height: 100%;
+}
+
+.detail-play-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 14, 24, 0.25);
+  transition: background 0.15s ease;
+  width: 100%;
+}
+
+.detail-play-overlay:hover {
+  background: rgba(10, 14, 24, 0.45);
+}
+
+.detail-info h1 {
+  margin: 0 0 8px;
+  font-size: clamp(24px, 4vw, 34px);
+  line-height: 1.2;
+}
+
+.detail-creator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.detail-creator-emoji {
+  font-size: 26px;
+}
+
+.detail-play {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.detail-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.detail-stats .stat {
+  padding: 10px 8px;
+}
+
+.detail-stats .stat-value {
+  font-size: 18px;
+}
+
+.detail-desc {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+
+.detail-desc h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.detail-desc p {
+  margin: 0 0 6px;
+  line-height: 1.6;
+}
+
 .start-overlay {
   position: absolute;
   inset: 0;
+  z-index: 3; /* タッチ操作レイヤーより上に出す */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -860,76 +1195,6 @@ textarea:focus {
 .start-help {
   font-size: 14px;
   color: #cbd5e1;
-}
-
-.pad {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 4px;
-}
-
-.pad-group {
-  display: flex;
-  gap: 10px;
-}
-
-.pad-cross {
-  display: grid;
-  grid-template-columns: repeat(3, 64px);
-  grid-template-rows: repeat(3, 64px);
-  gap: 4px;
-  margin: 0 auto;
-}
-
-.pad-btn {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  background: var(--card-2);
-  border: 2px solid var(--line);
-  font-size: 26px;
-  font-weight: 900;
-  color: var(--text);
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.pad-btn:active {
-  background: var(--blue);
-  border-color: var(--blue);
-}
-
-.pad-cam {
-  font-size: 22px;
-  color: var(--muted);
-}
-
-.canvas-3d {
-  touch-action: none;
-  cursor: grab;
-}
-
-.canvas-3d:active {
-  cursor: grabbing;
-}
-
-.pad-jump {
-  width: 90px;
-  height: 90px;
-  border-radius: 50%;
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #06251a;
-  font-size: 34px;
-}
-
-@media (min-width: 900px) and (hover: hover) and (pointer: fine) {
-  .pad {
-    display: none;
-  }
 }
 
 /* ---------- 結果 ---------- */
@@ -1170,18 +1435,6 @@ textarea:focus {
     aspect-ratio: 4 / 3;
   }
 
-  .pad-cross {
-    grid-template-columns: repeat(3, 56px);
-    grid-template-rows: repeat(3, 56px);
-  }
 
-  .pad-btn {
-    width: 56px;
-    height: 56px;
-  }
 
-  .pad-jump {
-    width: 80px;
-    height: 80px;
-  }
 }

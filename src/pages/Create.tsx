@@ -63,7 +63,7 @@ export function CreatePage() {
                   <a className="btn btn-sm btn-blue" href={hrefFor(g.kidMode ? { name: 'kid', id: g.id } : { name: 'studio', id: g.id })}>
                     ✏️ つづき
                   </a>
-                  <a className="btn btn-sm" href={hrefFor({ name: 'play', id: g.id })}>
+                  <a className="btn btn-sm" href={hrefFor({ name: 'game', id: g.id })}>
                     ▶ あそぶ
                   </a>
                   <button

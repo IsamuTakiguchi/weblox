@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sfx, speak } from '../audio';
-import { fireConfetti, toast } from '../components/feedback';
 import { AnyGameCanvas } from '../components/AnyGameCanvas';
+import { fireConfetti, toast } from '../components/feedback';
 import { Empty, Modal } from '../components/ui';
-import { themeDef } from '../engine/themes';
 import type { GameData, GameResult } from '../engine/types';
-import { hrefFor } from '../router';
+import { consumeAutoStart, enterFullscreen, exitFullscreen } from '../fullscreen';
+import { hrefFor, navigate } from '../router';
 import { decodeGame, shareUrl } from '../share/codec';
-import { getDraft, importToLibrary, recordPlay, recordWin, toggleLike, useStore } from '../store/store';
+import { getDraft, recordPlay, recordWin, useStore } from '../store/store';
+import { GameDetail } from './GameDetail';
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -42,14 +43,7 @@ export async function shareGame(game: GameData): Promise<void> {
   toast(ok ? '🔗 リンクをコピーしました！ともだちに送ろう' : 'リンクをコピーできませんでした');
 }
 
-interface PlayerProps {
-  game: GameData;
-  /** 公開済みゲームなら統計を記録する */
-  published: boolean;
-  shared?: boolean;
-}
-
-function ResultModal({ result, game, onRetry, published }: { result: GameResult; game: GameData; onRetry: () => void; published: boolean }) {
+function ResultModal({ result, game, onRetry, onLeave, published }: { result: GameResult; game: GameData; onRetry: () => void; onLeave: () => void; published: boolean }) {
   const [reward, setReward] = useState<{ reward: number; newBest: boolean } | null>(null);
   useEffect(() => {
     if (result.outcome === 'win') {
@@ -85,93 +79,153 @@ function ResultModal({ result, game, onRetry, published }: { result: GameResult;
           <button className="btn btn-primary btn-lg" onClick={onRetry}>
             🔁 もういっかい
           </button>
-          <a className="btn btn-lg" href={hrefFor({ name: 'discover' })}>
-            🎮 ほかのゲーム
-          </a>
+          <button className="btn btn-lg" onClick={onLeave}>
+            🚪 やめる
+          </button>
         </div>
       </div>
     </Modal>
   );
 }
 
-export function GamePlayer({ game, published, shared }: PlayerProps) {
+function PauseMenu({ onResume, onRestart, onLeave, game }: { onResume: () => void; onRestart: () => void; onLeave: () => void; game: GameData }) {
+  const is3d = game.rules.mode === '3d';
+  const platformer = game.rules.mode === 'platformer';
+  return (
+    <Modal onClose={onResume}>
+      <div className="pause-menu">
+        <div className="pause-head">
+          <img src={`${import.meta.env.BASE_URL}icons/logo.svg`} alt="" width={40} height={40} />
+          <h2>{game.title || 'なまえのないゲーム'}</h2>
+        </div>
+        <div className="pause-actions">
+          <button className="btn btn-primary btn-lg" onClick={onResume}>
+            ▶ つづける
+          </button>
+          <button className="btn btn-lg" onClick={onRestart}>
+            🔁 さいしょから
+          </button>
+          <button className="btn btn-lg btn-danger" onClick={onLeave}>
+            🚪 ゲームをやめる
+          </button>
+        </div>
+        <div className="pause-help">
+          <h3>そうさほうほう</h3>
+          <div className="pause-help-grid">
+            <div>
+              <b>📱 スマホ・タブレット</b>
+              <ul>
+                <li>画面の<b>左側</b>をなぞる → うごく（ジョイスティック）</li>
+                {(is3d || platformer) && <li>右下の <b>⬆ ボタン</b> → ジャンプ</li>}
+                {is3d && <li>画面の<b>右側</b>をなぞる → カメラをまわす</li>}
+                {is3d && <li>2 本の指でひらく・とじる → ズーム</li>}
+              </ul>
+            </div>
+            <div>
+              <b>⌨️ パソコン</b>
+              <ul>
+                <li>
+                  <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> か 矢印キー → うごく
+                </li>
+                {(is3d || platformer) && (
+                  <li>
+                    <kbd>スペース</kbd> → ジャンプ
+                  </li>
+                )}
+                {is3d && <li>マウスをドラッグ → カメラをまわす</li>}
+                {is3d && (
+                  <li>
+                    ホイール / <kbd>I</kbd> <kbd>O</kbd> → ズーム
+                  </li>
+                )}
+                <li>
+                  <kbd>Esc</kbd> → このメニュー
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+interface PlayerProps {
+  game: GameData;
+  /** 公開済みゲームなら統計を記録する */
+  published: boolean;
+  /** 「やめる」で戻る先 */
+  onLeave: () => void;
+  autoStart?: boolean;
+}
+
+/** 全画面のゲームプレイ画面（Roblox でゲームに入ったときの画面） */
+export function GamePlayer({ game, published, onLeave, autoStart = false }: PlayerProps) {
   const [result, setResult] = useState<GameResult | null>(null);
   const [resetKey, setResetKey] = useState(0);
-  const liked = useStore((s) => s.likes.includes(game.id));
-  const pub = useStore((s) => s.published.find((g) => g.id === game.id));
-  const best = useStore((s) => s.best[game.id]);
-  const mine = Boolean(getDraft(game.id));
-  const th = themeDef(game.theme);
+  const [menu, setMenu] = useState(false);
 
   useEffect(() => {
     if (published) recordPlay(game.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.id]);
 
+  // ページの上下（ヘッダーなど）を隠して、画面いっぱいにする
+  useEffect(() => {
+    document.body.classList.add('immersive-open');
+    return () => document.body.classList.remove('immersive-open');
+  }, []);
+
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (e.code === 'Escape' && !result) {
+        e.preventDefault();
+        setMenu((m) => !m);
+      }
+      if (e.code === 'KeyF' && !e.repeat) void enterFullscreen();
+    };
+    window.addEventListener('keydown', on);
+    return () => window.removeEventListener('keydown', on);
+  }, [result]);
+
   const onFinish = useCallback((r: GameResult) => setResult(r), []);
   const retry = () => {
     sfx.tap();
     setResult(null);
+    setMenu(false);
     setResetKey((k) => k + 1);
+  };
+  const leave = () => {
+    sfx.tap();
+    void exitFullscreen();
+    onLeave();
   };
 
   return (
-    <main className="page play-page">
-      <div className="play-head">
-        <a className="btn btn-icon" href={hrefFor({ name: 'discover' })} aria-label="もどる">
-          ←
-        </a>
-        <h1>{game.title || 'なまえのないゲーム'}</h1>
-        <span className="hint">
-          {th.emoji} {th.name} · {game.rules.mode === 'platformer' ? '🦘 ジャンプ' : game.rules.mode === '3d' ? '🧊 3D' : '🚶 あるく'} · {game.authorAvatar}{' '}
-          {game.author || 'あなた'}
-        </span>
-        <span className="spacer" />
-        {best !== undefined && <span className="hint">🥇 ベスト {best}</span>}
-        {pub && (
-          <button
-            className={liked ? 'btn btn-sm btn-pink' : 'btn btn-sm'}
-            onClick={() => {
-              sfx.tap();
-              toggleLike(game.id);
-            }}
-          >
-            👍 {pub.likes}
-          </button>
-        )}
-        <button className="btn btn-sm" onClick={() => void shareGame(game)}>
-          🔗 シェア
-        </button>
-        {shared && (
-          <button
-            className="btn btn-sm btn-blue"
-            onClick={() => {
-              importToLibrary(game);
-              toast('📚 ライブラリに保存しました');
-            }}
-          >
-            📚 ほぞん
-          </button>
-        )}
-        {mine && (
-          <a className="btn btn-sm" href={hrefFor(game.kidMode ? { name: 'kid', id: game.id } : { name: 'studio', id: game.id })}>
-            ✏️ へんしゅう
-          </a>
-        )}
-        <button className="btn btn-sm" onClick={retry}>
-          🔁 リスタート
-        </button>
-      </div>
-      {game.description && <p className="hint">{game.description}</p>}
-      <AnyGameCanvas game={game} onFinish={onFinish} resetKey={resetKey} />
-      {result && <ResultModal result={result} game={game} onRetry={retry} published={published} />}
-    </main>
+    <div className="immersive">
+      <AnyGameCanvas
+        game={game}
+        onFinish={onFinish}
+        resetKey={resetKey}
+        autoStart={autoStart}
+        paused={menu || Boolean(result)}
+        onMenu={() => {
+          sfx.tap();
+          setMenu(true);
+        }}
+        fullscreenButton
+      />
+      {menu && !result && <PauseMenu game={game} onResume={() => setMenu(false)} onRestart={retry} onLeave={leave} />}
+      {result && <ResultModal result={result} game={game} onRetry={retry} onLeave={leave} published={published} />}
+    </div>
   );
 }
 
 export function PlayPage({ id }: { id: string }) {
   const game = useStore((s) => s.published.find((g) => g.id === id) ?? s.drafts.find((g) => g.id === id));
   const isPublished = useStore((s) => s.published.some((g) => g.id === id));
+  // 「▶ あそぶ」から来たときだけ自動スタート（id が変わるたびに判定し直す）
+  const auto = useMemo(() => consumeAutoStart(), [id]);
   if (!game) {
     return (
       <main className="page">
@@ -183,11 +237,21 @@ export function PlayPage({ id }: { id: string }) {
       </main>
     );
   }
-  return <GamePlayer key={game.id + game.updatedAt} game={game} published={isPublished} />;
+  return (
+    <GamePlayer
+      key={game.id + game.updatedAt}
+      game={game}
+      published={isPublished}
+      autoStart={auto}
+      onLeave={() => navigate(getDraft(game.id) || isPublished ? { name: 'game', id: game.id } : { name: 'discover' })}
+    />
+  );
 }
 
-export function SharedPage({ code }: { code: string }) {
+export function SharedPage({ code, play }: { code: string; play?: boolean }) {
   const game = useMemo(() => decodeGame(code), [code]);
+  // 詳細 → プレイに切り替わるときに判定する（同じコンポーネントが使い回されるため）
+  const auto = useMemo(() => (play ? consumeAutoStart() : false), [play, code]);
   if (!game) {
     return (
       <main className="page">
@@ -200,5 +264,8 @@ export function SharedPage({ code }: { code: string }) {
       </main>
     );
   }
-  return <GamePlayer key={game.id} game={game} published={false} shared />;
+  if (play) {
+    return <GamePlayer key={game.id} game={game} published={false} autoStart={auto} onLeave={() => navigate({ name: 'shared', code })} />;
+  }
+  return <GameDetail game={game} shared onPlay={() => navigate({ name: 'shared', code, play: true })} />;
 }

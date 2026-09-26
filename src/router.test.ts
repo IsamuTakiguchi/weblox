@@ -7,7 +7,9 @@ describe('router', () => {
     expect(parseHash('#/')).toEqual({ name: 'home' });
     expect(parseHash('#/games')).toEqual({ name: 'discover' });
     expect(parseHash('#/play/abc')).toEqual({ name: 'play', id: 'abc' });
+    expect(parseHash('#/game/abc')).toEqual({ name: 'game', id: 'abc' });
     expect(parseHash('#/play/s/XYZ')).toEqual({ name: 'shared', code: 'XYZ' });
+    expect(parseHash('#/play/s/XYZ/go')).toEqual({ name: 'shared', code: 'XYZ', play: true });
     expect(parseHash('#/kid')).toEqual({ name: 'kid', id: undefined });
     expect(parseHash('#/kid/g1')).toEqual({ name: 'kid', id: 'g1' });
     expect(parseHash('#/studio/g2')).toEqual({ name: 'studio', id: 'g2' });
@@ -22,6 +24,8 @@ describe('router', () => {
       { name: 'home' },
       { name: 'discover' },
       { name: 'play', id: 'g_1' },
+      { name: 'game', id: 'g_1' },
+      { name: 'shared', code: 'abc', play: true },
       { name: 'kid', id: 'g_2' },
       { name: 'studio' },
       { name: 'avatar' },

@@ -3,13 +3,17 @@ import { playEvents, sfx } from '../audio';
 import { renderRuntime } from '../engine/render';
 import { GameRuntime, type InputState } from '../engine/runtime';
 import type { GameData, GameResult } from '../engine/types';
+import { TouchControls } from './TouchControls';
+import type { HudState } from './hud';
 
 interface Props {
   game: GameData;
   onFinish: (result: GameResult) => void;
+  onHud?: (hud: HudState) => void;
   /** 再スタート時に呼ばれる（キー） */
   resetKey?: number;
   autoStart?: boolean;
+  paused?: boolean;
 }
 
 const emptyInput = (): InputState => ({ left: false, right: false, up: false, down: false, jump: false });
@@ -37,22 +41,29 @@ function keyToInput(code: string): keyof InputState | null {
   }
 }
 
-export function GameCanvas({ game, onFinish, resetKey = 0, autoStart = false }: Props) {
+/** 2D ゲームのプレイ画面（あるく／ジャンプ） */
+export function GameCanvas({ game, onFinish, onHud, resetKey = 0, autoStart = false, paused = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const rtRef = useRef<GameRuntime | null>(null);
-  const inputRef = useRef<InputState>(emptyInput());
+  const keyInput = useRef<InputState>(emptyInput());
+  const stickInput = useRef<InputState>(emptyInput());
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+  const onHudRef = useRef(onHud);
+  onHudRef.current = onHud;
   const [started, setStarted] = useState(autoStart);
-  const [hud, setHud] = useState({ lives: game.rules.lives, coins: 0, total: 0, score: 0, keys: 0, time: null as number | null });
   const finishedRef = useRef(false);
+  const platformer = game.rules.mode === 'platformer';
 
   // ランタイム作成
   useEffect(() => {
     rtRef.current = new GameRuntime(game);
     finishedRef.current = false;
-    inputRef.current = emptyInput();
+    keyInput.current = emptyInput();
+    stickInput.current = emptyInput();
     const rt = rtRef.current;
-    setHud({ lives: rt.lives, coins: 0, total: rt.totalCoins, score: 0, keys: 0, time: rt.remainingTime });
+    onHudRef.current?.({ lives: rt.lives, coins: 0, total: rt.totalCoins, score: 0, keys: 0, time: rt.remainingTime });
     setStarted(autoStart);
   }, [game, resetKey, autoStart]);
 
@@ -63,13 +74,12 @@ export function GameCanvas({ game, onFinish, resetKey = 0, autoStart = false }: 
       if (!k) return;
       e.preventDefault();
       if (!started) setStarted(true);
-      if (!inputRef.current[k] && (k === 'jump' || (k === 'up' && game.rules.mode === 'platformer')) && rtRef.current?.player.onGround) sfx.jump();
-      inputRef.current[k] = true;
+      if (!keyInput.current[k] && (k === 'jump' || (k === 'up' && platformer)) && rtRef.current?.player.onGround) sfx.jump();
+      keyInput.current[k] = true;
     };
     const up = (e: KeyboardEvent) => {
       const k = keyToInput(e.code);
-      if (!k) return;
-      inputRef.current[k] = false;
+      if (k) keyInput.current[k] = false;
     };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -77,7 +87,7 @@ export function GameCanvas({ game, onFinish, resetKey = 0, autoStart = false }: 
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [started, game.rules.mode]);
+  }, [started, platformer]);
 
   // ループ
   useEffect(() => {
@@ -102,6 +112,7 @@ export function GameCanvas({ game, onFinish, resetKey = 0, autoStart = false }: 
     let raf = 0;
     let last = performance.now();
     let hudTick = 0;
+    const merged = emptyInput();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const rt = rtRef.current;
@@ -109,15 +120,22 @@ export function GameCanvas({ game, onFinish, resetKey = 0, autoStart = false }: 
       // rAF のタイムスタンプは初期化時刻より前のことがあるため、0 未満にならないようにする
       const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
       last = now;
-      if (started && !rt.finished) rt.step(dt, inputRef.current);
-      else if (!started) rt.time += dt; // アニメだけ動かす
+      const a = keyInput.current;
+      const b = stickInput.current;
+      merged.left = a.left || b.left;
+      merged.right = a.right || b.right;
+      merged.up = a.up || b.up;
+      merged.down = a.down || b.down;
+      merged.jump = a.jump || b.jump;
+      if (started && !pausedRef.current && !rt.finished) rt.step(dt, merged);
+      else rt.time += dt; // アニメだけ動かす
       renderRuntime(ctx, rt, canvas.width, canvas.height);
       const ev = rt.drainEvents();
       if (ev.length) playEvents(ev);
       hudTick += dt;
       if (hudTick > 0.1 || ev.length) {
         hudTick = 0;
-        setHud({ lives: rt.lives, coins: rt.coins, total: rt.totalCoins, score: rt.score, keys: rt.keys, time: rt.remainingTime });
+        onHudRef.current?.({ lives: rt.lives, coins: rt.coins, total: rt.totalCoins, score: rt.score, keys: rt.keys, time: rt.remainingTime });
       }
       if (rt.finished && !finishedRef.current) {
         finishedRef.current = true;
@@ -132,89 +150,51 @@ export function GameCanvas({ game, onFinish, resetKey = 0, autoStart = false }: 
     };
   }, [started, onFinish, resetKey, game]);
 
-  const press = (k: keyof InputState, on: boolean) => (e: React.PointerEvent) => {
-    e.preventDefault();
-    if (on && !started) setStarted(true);
-    if (on && !inputRef.current[k] && (k === 'jump' || k === 'up') && game.rules.mode === 'platformer' && rtRef.current?.player.onGround) sfx.jump();
-    inputRef.current[k] = on;
-  };
-  const padBtn = (k: keyof InputState, label: string, cls = '') => (
-    <button
-      type="button"
-      className={`pad-btn ${cls}`}
-      onPointerDown={press(k, true)}
-      onPointerUp={press(k, false)}
-      onPointerLeave={press(k, false)}
-      onPointerCancel={press(k, false)}
-      onContextMenu={(e) => e.preventDefault()}
-      aria-label={label}
-    >
-      {label}
-    </button>
-  );
-
-  const platformer = game.rules.mode === 'platformer';
-  const hearts = '❤️'.repeat(Math.max(0, Math.min(9, hud.lives)));
-
   return (
-    <div className="play-wrap">
-      <div className="hud">
-        <span className="hud-item" title="ライフ">
-          {hearts || '💔'}
-        </span>
-        <span className="hud-item" title="コイン">
-          🪙 {hud.coins}/{hud.total}
-        </span>
-        <span className="hud-item" title="スコア">
-          ⭐ {hud.score}
-        </span>
-        {hud.keys > 0 && <span className="hud-item">🔑 {hud.keys}</span>}
-        {hud.time !== null && (
-          <span className={`hud-item ${hud.time < 10 ? 'hud-danger' : ''}`} title="のこり時間">
-            ⏱ {Math.ceil(hud.time)}
-          </span>
-        )}
-      </div>
-      <div className="canvas-wrap" ref={wrapRef}>
-        <canvas ref={canvasRef} className="game-canvas" />
-        {!started && (
-          <button
-            type="button"
-            className="start-overlay"
-            onClick={() => {
-              sfx.tap();
-              setStarted(true);
-            }}
-          >
-            <span className="start-big">▶</span>
-            <span className="start-label">スタート！</span>
-            <span className="start-help">{platformer ? '← → でうごく　スペース / ↑ でジャンプ' : '↑ ↓ ← → でうごく'}</span>
-          </button>
-        )}
-      </div>
-      <div className="pad" aria-label="そうさボタン">
-        {platformer ? (
-          <>
-            <div className="pad-group">
-              {padBtn('left', '◀')}
-              {padBtn('right', '▶')}
-            </div>
-            <div className="pad-group">{padBtn('jump', '⤒', 'pad-jump')}</div>
-          </>
-        ) : (
-          <div className="pad-cross">
-            <span />
-            {padBtn('up', '▲')}
-            <span />
-            {padBtn('left', '◀')}
-            <span className="pad-center" />
-            {padBtn('right', '▶')}
-            <span />
-            {padBtn('down', '▼')}
-            <span />
-          </div>
-        )}
-      </div>
+    <div className="canvas-wrap" ref={wrapRef}>
+      <canvas ref={canvasRef} className="game-canvas" />
+      <TouchControls
+        showJump={platformer}
+        handlers={{
+          onAnyInput: () => {
+            if (!started) setStarted(true);
+          },
+          onMove: (x, y) => {
+            const s = stickInput.current;
+            s.left = x < -0.3;
+            s.right = x > 0.3;
+            if (platformer) {
+              // ジャンプゲームではスティックを上に倒してもジャンプできる
+              const wasUp = s.up;
+              s.up = y > 0.6;
+              if (s.up && !wasUp && rtRef.current?.player.onGround) sfx.jump();
+              s.down = false;
+            } else {
+              s.up = y > 0.3;
+              s.down = y < -0.3;
+            }
+          },
+          onJump: (down) => {
+            if (down && rtRef.current?.player.onGround) sfx.jump();
+            stickInput.current.jump = down;
+          },
+        }}
+      />
+      {!started && (
+        <button
+          type="button"
+          className="start-overlay"
+          onPointerDown={() => {
+            sfx.tap();
+            setStarted(true);
+          }}
+          onClick={() => setStarted(true)}
+        >
+          <span className="start-big">▶</span>
+          <span className="start-label">タップで スタート！</span>
+          <span className="start-help">{platformer ? '← → でうごく　スペース でジャンプ　スマホは左をなぞって 右のボタンでジャンプ' : '↑ ↓ ← → でうごく　スマホは画面をなぞってうごく'}</span>
+        </button>
+      )}
     </div>
   );
 }

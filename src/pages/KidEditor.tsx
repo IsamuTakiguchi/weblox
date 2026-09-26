@@ -8,6 +8,7 @@ import { autoFix, createGame, defaultRules, emptyTiles, fillAll, fillFloor, KID_
 import { HEROES, THEMES } from '../engine/themes';
 import { KID_PALETTE, tileDef } from '../engine/tiles';
 import type { GameData, GameResult, TileId } from '../engine/types';
+import { enterFullscreen, requestAutoStart } from '../fullscreen';
 import { hrefFor, navigate } from '../router';
 import { shareGame } from './Play';
 import { getDraft, getState, publishGame, saveDraft } from '../store/store';
@@ -159,9 +160,17 @@ export function KidEditorPage({ id }: { id?: string }) {
             <Thumbnail game={done} />
           </div>
           <div className="modal-actions">
-            <a className="btn btn-primary btn-xl" href={hrefFor({ name: 'play', id: done.id })}>
+            <button
+              className="btn btn-primary btn-xl"
+              onClick={() => {
+                sfx.tap();
+                requestAutoStart();
+                void enterFullscreen();
+                navigate({ name: 'play', id: done.id });
+              }}
+            >
               ▶ あそぶ
-            </a>
+            </button>
             <button className="btn btn-blue btn-xl" onClick={() => void shareGame(done)}>
               🔗 ともだちに おくる
             </button>

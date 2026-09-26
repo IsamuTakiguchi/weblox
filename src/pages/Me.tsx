@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { isMuted, setMuted } from '../audio';
 import { toast } from '../components/feedback';
 import { AvatarBadge, Empty, GameCard, SpeechToggle } from '../components/ui';
@@ -9,7 +9,9 @@ import { shareGame } from './Play';
 export function MePage() {
   const profile = useStore((s) => s.profile);
   const drafts = useStore((s) => s.drafts);
-  const mine = useStore((s) => s.published.filter((g) => !g.featured));
+  const published = useStore((s) => s.published);
+  // セレクタが毎回新しい配列を返すと再描画ループになるので useMemo で固定する
+  const mine = useMemo(() => published.filter((g) => !g.featured), [published]);
   const [muted, setMutedState] = useState(isMuted());
 
   return (

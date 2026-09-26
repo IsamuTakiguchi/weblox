@@ -95,7 +95,7 @@ export function HomePage() {
               <div key={g.id} className="card" style={{ padding: 0 }}>
                 <GameCard game={g} onClick={() => (location.hash = hrefFor(g.kidMode ? { name: 'kid', id: g.id } : { name: 'studio', id: g.id }))} />
                 <div className="card-actions">
-                  <a className="btn btn-sm btn-primary" href={hrefFor({ name: 'play', id: g.id })}>
+                  <a className="btn btn-sm btn-primary" href={hrefFor({ name: 'game', id: g.id })}>
                     ▶ あそぶ
                   </a>
                   <a className="btn btn-sm" href={hrefFor(g.kidMode ? { name: 'kid', id: g.id } : { name: 'studio', id: g.id })}>

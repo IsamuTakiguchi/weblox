@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 export type Route =
   | { name: 'home' }
   | { name: 'discover' }
+  | { name: 'game'; id: string }
   | { name: 'play'; id: string }
-  | { name: 'shared'; code: string }
+  | { name: 'shared'; code: string; play?: boolean }
   | { name: 'create' }
   | { name: 'kid'; id?: string }
   | { name: 'studio'; id?: string }
@@ -27,8 +28,16 @@ export function parseHash(hash: string): Route {
       return { name: 'home' };
     case 'games':
       return { name: 'discover' };
+    case 'game':
+      if (parts[1]) return { name: 'game', id: parts[1] };
+      return { name: 'discover' };
     case 'play':
-      if (parts[1] === 's' && parts[2]) return { name: 'shared', code: parts.slice(2).join('/') };
+      if (parts[1] === 's' && parts[2]) {
+        const last = parts[parts.length - 1];
+        const play = parts.length > 3 && last === 'go';
+        const code = play ? parts.slice(2, -1).join('/') : parts.slice(2).join('/');
+        return play ? { name: 'shared', code, play: true } : { name: 'shared', code };
+      }
       if (parts[1]) return { name: 'play', id: parts[1] };
       return { name: 'discover' };
     case 'create':
@@ -54,10 +63,12 @@ export function hrefFor(route: Route): string {
       return '#/';
     case 'discover':
       return '#/games';
+    case 'game':
+      return `#/game/${encodeURIComponent(route.id)}`;
     case 'play':
       return `#/play/${encodeURIComponent(route.id)}`;
     case 'shared':
-      return `#/play/s/${route.code}`;
+      return route.play ? `#/play/s/${route.code}/go` : `#/play/s/${route.code}`;
     case 'create':
       return '#/create';
     case 'kid':
@@ -75,6 +86,11 @@ export function hrefFor(route: Route): string {
 
 export function navigate(route: Route): void {
   location.hash = hrefFor(route);
+}
+
+/** ゲームを全画面で遊んでいる最中か（ヘッダーなどを隠す） */
+export function isImmersive(route: Route): boolean {
+  return route.name === 'play' || (route.name === 'shared' && Boolean(route.play));
 }
 
 export function useRoute(): Route {

@@ -105,7 +105,7 @@ export function GameCard({ game, onClick }: { game: PublishedGame | GameData; on
     );
   }
   return (
-    <a className="card" href={hrefFor({ name: 'play', id: game.id })}>
+    <a className="card" href={hrefFor({ name: 'game', id: game.id })}>
       {body}
     </a>
   );
