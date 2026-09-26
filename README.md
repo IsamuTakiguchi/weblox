@@ -18,9 +18,18 @@
 https://<GitHubユーザー名>.github.io/weblox/
 ```
 
-ビルド結果は `gh-pages` ブランチに push され、そのブランチが作られると GitHub Pages が自動で有効になります。
-リポジトリ設定を手で触る必要はありません（**Settings → Pages** で Source が「Deploy from a branch / gh-pages」になっていることを確認できます）。
-初回だけ公開まで数分かかることがあります。
+### 初回だけ必要な設定（1 回きり）
+
+GitHub Actions のトークンには Pages サイトを**新規作成**する権限がないため、最初の 1 回だけリポジトリ設定で Pages を有効にしてください。
+
+1. **Settings → Pages**（`https://github.com/<owner>/weblox/settings/pages`）を開く
+2. **Build and deployment → Source** で **GitHub Actions** を選ぶ
+   （**Deploy from a branch** → Branch `gh-pages` / `/ (root)` でも動きます）
+3. Actions タブで「Deploy to GitHub Pages」を **Run workflow** するか、`main` に何か push する
+
+以降は `main` に push するたびに全自動でデプロイされます。ワークフローは Source の設定を自動判別し、
+「GitHub Actions」なら `actions/deploy-pages`、「Deploy from a branch」なら `gh-pages` ブランチへの push でデプロイします。
+Pages が未設定のまま実行された場合は、ジョブのサマリーに上記の手順を表示して失敗します。
 
 ## 開発
 
@@ -45,7 +54,7 @@ Node.js 20 以上が必要です。
 | シェア | ゲームデータを `lz-string` で圧縮し URL のハッシュに埋め込む（`#/play/s/<code>`） |
 | ルーティング | ハッシュルーティング。GitHub Pages で 404 が出ない |
 | CI | `.github/workflows/ci.yml` — 全ブランチと PR で型チェック・テスト・ビルド |
-| デプロイ | `.github/workflows/deploy.yml` — `main` への push で `gh-pages` ブランチに配信し GitHub Pages に自動公開 |
+| デプロイ | `.github/workflows/deploy.yml` — `main` への push で GitHub Pages に自動公開（Source 設定を自動判別） |
 
 ### 「公開」の範囲について
 

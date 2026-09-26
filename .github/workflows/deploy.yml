@@ -1,9 +1,11 @@
 # main に push されるたびに、テスト → ビルド → GitHub Pages へ自動デプロイする
 #
-# 方式: ビルド結果を gh-pages ブランチに push する。
-# gh-pages ブランチが作られると GitHub Pages は自動で有効になるため、
-# リポジトリ設定を手で触る必要がない（GITHUB_TOKEN には Pages サイトを
-# 新規作成する権限がないので、actions/deploy-pages 方式は初回に失敗する）。
+# GitHub Pages の「Source」設定がどちらでも動くようにしている:
+#   - GitHub Actions          → actions/deploy-pages でデプロイ（推奨）
+#   - Deploy from a branch    → gh-pages ブランチに push してデプロイ
+# Pages がまだ有効になっていない場合は、gh-pages ブランチを用意したうえで
+# 有効化の手順をログに出して失敗する（GITHUB_TOKEN には Pages サイトを
+# 新規作成する権限がないため、初回の有効化だけはリポジトリ設定で行う）。
 name: Deploy to GitHub Pages
 
 on:
@@ -13,16 +15,19 @@ on:
 
 permissions:
   contents: write # gh-pages ブランチへの push
-  pages: write # Pages のビルド要求
+  pages: write # Pages へのデプロイ／ビルド要求
+  id-token: write # actions/deploy-pages に必要
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Test, Build & Deploy
+  build:
+    name: Test & Build
     runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,7 +54,31 @@ jobs:
           npm run build
           touch dist/.nojekyll
 
+      - name: Detect Pages mode
+        id: mode
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          json=$(gh api "repos/${GITHUB_REPOSITORY}/pages" 2>/dev/null || echo '{}')
+          build_type=$(echo "$json" | jq -r '.build_type // empty')
+          case "$build_type" in
+            workflow) mode=workflow ;;
+            legacy)   mode=branch ;;
+            *)        mode=disabled ;;
+          esac
+          echo "Pages build_type=${build_type:-<none>} → mode=$mode"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
+      # --- Source: GitHub Actions の場合 ---
+      - name: Upload Pages artifact
+        if: steps.mode.outputs.mode == 'workflow'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      # --- Source: Deploy from a branch の場合（未設定時も、選べるように用意しておく） ---
       - name: Publish to gh-pages branch
+        if: steps.mode.outputs.mode != 'workflow'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -58,44 +87,60 @@ jobs:
           force_orphan: true
           commit_message: 'deploy: ${{ github.sha }}'
 
-      # 初回は gh-pages ブランチの作成で Pages が有効化されるだけで
-      # ビルドが走らないことがあるため、明示的にビルドを要求する
-      - name: Request Pages build
-        continue-on-error: true
+      - name: Wait for Pages build (branch mode)
+        if: steps.mode.outputs.mode == 'branch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          sleep 10
-          gh api -X POST "repos/${GITHUB_REPOSITORY}/pages/builds" || echo "Pages build request skipped"
-
-      # Pages 側のビルドが終わるまで待ち、結果（と失敗時の理由）をログに出す
-      - name: Wait for Pages build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "--- Pages site ---"
-          gh api "repos/${GITHUB_REPOSITORY}/pages" || echo "(pages info unavailable)"
+          sleep 5
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/pages/builds" >/dev/null || true
           for i in $(seq 1 30); do
             sleep 10
             json=$(gh api "repos/${GITHUB_REPOSITORY}/pages/builds/latest" 2>/dev/null || echo '{}')
             status=$(echo "$json" | jq -r '.status // "unknown"')
             echo "[$i] status=$status"
-            if [ "$status" = "built" ]; then
-              echo "✅ Pages build finished"
-              exit 0
-            fi
+            [ "$status" = "built" ] && { echo "✅ Pages build finished"; exit 0; }
             if [ "$status" = "errored" ]; then
-              echo "❌ Pages build failed:"
-              echo "$json" | jq '.error'
-              exit 1
+              echo "❌ Pages build failed:"; echo "$json" | jq '.error'; exit 1
             fi
           done
           echo "⚠️ Pages build did not finish in time (status=$status)"
-          echo "$json"
+
+      - name: Pages is not enabled yet
+        if: steps.mode.outputs.mode == 'disabled'
+        run: |
+          owner="${GITHUB_REPOSITORY%%/*}"; repo="${GITHUB_REPOSITORY##*/}"
+          {
+            echo "## ⚠️ GitHub Pages がまだ有効になっていません"
+            echo
+            echo "ビルドは成功し、\`gh-pages\` ブランチも更新済みです。初回だけ次の設定をしてください（1回きり）。"
+            echo
+            echo "1. リポジトリの **Settings → Pages** を開く: https://github.com/${GITHUB_REPOSITORY}/settings/pages"
+            echo "2. **Build and deployment → Source** で **GitHub Actions** を選ぶ"
+            echo "   （または **Deploy from a branch** → Branch: \`gh-pages\` / \`/ (root)\` → Save）"
+            echo "3. このワークフローを再実行するか、main に push する"
+            echo
+            echo "公開 URL: https://${owner,,}.github.io/${repo}/"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "::error::GitHub Pages が未設定です。Settings → Pages → Source を設定してください（詳細はジョブのサマリー参照）"
+          exit 1
 
       - name: Show URL
+        if: steps.mode.outputs.mode == 'branch'
         run: |
-          owner="${GITHUB_REPOSITORY%%/*}"
-          repo="${GITHUB_REPOSITORY##*/}"
-          echo "### 🚀 Deployed" >> "$GITHUB_STEP_SUMMARY"
+          owner="${GITHUB_REPOSITORY%%/*}"; repo="${GITHUB_REPOSITORY##*/}"
+          echo "### 🚀 Deployed (branch mode)" >> "$GITHUB_STEP_SUMMARY"
           echo "https://${owner,,}.github.io/${repo}/" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy (GitHub Actions mode)
+    needs: build
+    if: needs.build.outputs.mode == 'workflow'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
