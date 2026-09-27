@@ -77,6 +77,7 @@ export function GridEditor({ game, tool, onChange, cell }: Props) {
     if (game.rules.mode === '3d' && t === 'empty') bg = (x + y) % 2 === 0 ? '#0b0f18' : '#111827'; // 奈落
     if (t === 'ground') bg = game.rules.mode === '3d' ? ((x + y) % 2 === 0 ? th.floor : th.floorAlt) : th.ground;
     if (t === 'wall') bg = th.wall;
+    if (t.startsWith('step')) bg = th.groundEdge;
     let content = '';
     if (t === 'start') content = game.hero;
     else if (t !== 'empty' && t !== 'ground' && t !== 'wall') content = def.emoji;

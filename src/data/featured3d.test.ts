@@ -8,7 +8,7 @@ import { FEATURED_GAMES } from './featured';
  * 立てるマス（床・アイテム）を頂点に、隣接か、立てないマスを最大 2 つ
  * とびこえて着地できる場合に辺を張り、スタートからの到達可能性を見る。
  */
-const STANDABLE: readonly TileId[] = ['ground', 'coin', 'gem', 'heart', 'key', 'goal', 'start', 'flower', 'spring', 'portal', 'cloud', 'enemy'];
+const STANDABLE: readonly TileId[] = ['ground', 'coin', 'gem', 'heart', 'key', 'goal', 'start', 'flower', 'spring', 'portal', 'cloud', 'enemy', 'step2', 'step3', 'step4', 'step5'];
 
 function reachable(game: GameData): Set<string> {
   const hasKey = findTiles(game, 'key').length > 0;

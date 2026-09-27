@@ -3,9 +3,15 @@ import { FEATURED_GAMES } from '../data/featured';
 import type { GameData, PublishedGame } from '../engine/types';
 
 export interface AvatarConfig {
+  /** かおの絵文字（3D では Roblox 風の顔に描き分ける） */
   face: string;
   hat: string;
+  /** シャツの色 */
   color: string;
+  /** ズボンの色 */
+  pants: string;
+  /** はだの色 */
+  skin: string;
   /** 買ったぼうしなど */
   unlocked: string[];
 }
@@ -32,15 +38,21 @@ export const FACES: readonly string[] = ['😀', '😎', '🥳', '🤩', '😺',
 export const HATS: readonly { id: string; emoji: string; name: string; price: number }[] = [
   { id: 'none', emoji: '', name: 'なし', price: 0 },
   { id: 'cap', emoji: '🧢', name: 'キャップ', price: 0 },
+  { id: 'hardhat', emoji: '⛑️', name: 'ヘルメット', price: 20 },
   { id: 'party', emoji: '🎉', name: 'パーティ', price: 20 },
-  { id: 'crown', emoji: '👑', name: 'おうかん', price: 50 },
   { id: 'tophat', emoji: '🎩', name: 'シルクハット', price: 40 },
+  { id: 'pirate', emoji: '🏴‍☠️', name: 'かいぞく', price: 45 },
+  { id: 'crown', emoji: '👑', name: 'おうかん', price: 50 },
   { id: 'wizard', emoji: '🧙', name: 'まほう', price: 60 },
+  { id: 'robot', emoji: '📦', name: 'ロボット', price: 60 },
+  { id: 'knight', emoji: '🛡️', name: 'きし', price: 70 },
   { id: 'star', emoji: '⭐', name: 'スター', price: 30 },
   { id: 'rainbow', emoji: '🌈', name: 'レインボー', price: 80 },
   { id: 'rocket', emoji: '🚀', name: 'ロケット', price: 100 },
 ];
-export const COLORS: readonly string[] = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#ec4899', '#14b8a6', '#64748b'];
+export const COLORS: readonly string[] = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#ec4899', '#14b8a6', '#64748b', '#111827', '#ffffff'];
+/** はだの色（Roblox のクラシックな黄色から） */
+export const SKINS: readonly string[] = ['#f5cd30', '#f8d9b0', '#e0ac69', '#c68642', '#8d5524', '#a0e7a0', '#9ecbff', '#d9d9d9'];
 
 export const REWARD_WIN = 10;
 export const REWARD_PUBLISH = 50;
@@ -51,7 +63,7 @@ const KEY = 'weblox.state.v1';
 function defaultProfile(): Profile {
   return {
     name: 'ゲスト',
-    avatar: { face: '😀', hat: 'cap', color: '#3b82f6', unlocked: ['none', 'cap'] },
+    avatar: { face: '😀', hat: 'cap', color: '#3b82f6', pants: '#22c55e', skin: '#f5cd30', unlocked: ['none', 'cap'] },
     wbx: 100,
     wins: 0,
     plays: 0,

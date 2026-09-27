@@ -37,7 +37,27 @@ export const TILES: readonly TileDef[] = [
   { id: 'flower', char: 'f', label: 'はな', hint: 'かざり（何もおこらない）', emoji: '🌸', kid: true, solid: false, deadly: false, pickup: false },
   { id: 'goal', char: 'G', label: 'ゴール', hint: 'ここに着くとクリア', emoji: '🚩', kid: true, solid: false, deadly: false, pickup: false },
   { id: 'start', char: 'P', label: 'スタート', hint: '主人公がはじめにいる場所', emoji: '🙂', kid: true, solid: false, deadly: false, pickup: false },
+  { id: 'step2', char: '2', label: 'だん2', hint: '高さ 2 の床（3D）。1 段ずつならジャンプで登れる。2D では壁', emoji: '2️⃣', kid: false, solid: true, deadly: false, pickup: false },
+  { id: 'step3', char: '3', label: 'だん3', hint: '高さ 3 の床（3D）', emoji: '3️⃣', kid: false, solid: true, deadly: false, pickup: false },
+  { id: 'step4', char: '4', label: 'だん4', hint: '高さ 4 の床（3D）', emoji: '4️⃣', kid: false, solid: true, deadly: false, pickup: false },
+  { id: 'step5', char: '5', label: 'だん5', hint: '高さ 5 の床（3D）', emoji: '5️⃣', kid: false, solid: true, deadly: false, pickup: false },
 ];
+
+/** 3D での床の高さ（step タイル）。該当しなければ null */
+export function stepHeight(id: TileId): number | null {
+  switch (id) {
+    case 'step2':
+      return 2;
+    case 'step3':
+      return 3;
+    case 'step4':
+      return 4;
+    case 'step5':
+      return 5;
+    default:
+      return null;
+  }
+}
 
 const byId = new Map<TileId, TileDef>(TILES.map((t) => [t.id, t]));
 const byChar = new Map<string, TileDef>(TILES.map((t) => [t.char, t]));
@@ -75,5 +95,9 @@ export const PRO_PALETTE: readonly TileId[] = [
   'flower',
   'goal',
   'start',
+  'step2',
+  'step3',
+  'step4',
+  'step5',
   'empty',
 ];

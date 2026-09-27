@@ -4,7 +4,7 @@ import type { GameMode } from '../engine/types';
 import { hrefFor } from '../router';
 import { useStore } from '../store/store';
 
-type Filter = 'all' | GameMode;
+type Filter = 'all' | GameMode | 'mini';
 type Sort = 'popular' | 'new' | 'liked';
 
 export function DiscoverPage() {
@@ -13,7 +13,7 @@ export function DiscoverPage() {
   const [sort, setSort] = useState<Sort>('popular');
   const [q, setQ] = useState('');
 
-  let list = published.filter((g) => filter === 'all' || g.rules.mode === filter);
+  let list = published.filter((g) => filter === 'all' || g.rules.mode === filter || (filter === 'mini' && (g.rules.mode === 'garden' || g.rules.mode === 'fishing')));
   if (q.trim()) {
     const k = q.trim().toLowerCase();
     list = list.filter((g) => g.title.toLowerCase().includes(k) || g.author.toLowerCase().includes(k) || g.description.toLowerCase().includes(k));
@@ -47,6 +47,9 @@ export function DiscoverPage() {
           </button>
           <button className={filter === '3d' ? 'on' : ''} onClick={() => setFilter('3d')}>
             🧊 3D
+          </button>
+          <button className={filter === 'mini' ? 'on' : ''} onClick={() => setFilter('mini')}>
+            🌱 ミニ
           </button>
         </div>
         <div className="seg" role="tablist" aria-label="ならびかえ">

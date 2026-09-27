@@ -6,7 +6,8 @@ export function HomePage() {
   const published = useStore((s) => s.published);
   const drafts = useStore((s) => s.drafts);
   const profile = useStore((s) => s.profile);
-  const featured = published.filter((g) => g.featured);
+  const featured = published.filter((g) => g.featured && g.collection !== 'popular');
+  const popular = published.filter((g) => g.collection === 'popular');
   const community = [...published.filter((g) => !g.featured)].sort((a, b) => b.publishedAt - a.publishedAt);
 
   return (
@@ -38,6 +39,20 @@ export function HomePage() {
           🎮🧱🚩
         </div>
       </section>
+
+      {popular.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2 className="section-title">🔥 Roblox で人気のあそび（風）</h2>
+            <span className="hint">はたけ・つり・タワー・スピードラン・まち・ラバ</span>
+          </div>
+          <div className="row-scroll">
+            {popular.map((g) => (
+              <GameCard key={g.id} game={g} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="section">
         <div className="section-head">

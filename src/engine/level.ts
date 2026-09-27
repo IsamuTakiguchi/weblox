@@ -100,6 +100,8 @@ export interface ValidationIssue {
 
 export function validateGame(game: GameData): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
+  // マップを使わないミニゲームはチェックなし
+  if (game.rules.mode === 'garden' || game.rules.mode === 'fishing') return issues;
   const starts = countTile(game, 'start');
   const goals = countTile(game, 'goal');
   const coins = countTile(game, 'coin');

@@ -20,6 +20,7 @@ function make(
   rules: GameRules,
   grid: { width: number; height: number; tiles: string },
   stats: { plays: number; likes: number },
+  collection?: string,
 ): PublishedGame {
   return {
     ...createGame({
@@ -40,8 +41,12 @@ function make(
     plays: stats.plays,
     likes: stats.likes,
     featured: true,
+    collection,
   };
 }
+
+/** マップを使わないミニゲーム用のダミーグリッド */
+const NO_GRID = { width: 12, height: 8, tiles: '.'.repeat(96) };
 
 export const FEATURED_GAMES: readonly PublishedGame[] = [
   make(
@@ -211,5 +216,117 @@ export const FEATURED_GAMES: readonly PublishedGame[] = [
       '####o#.....#####',
     ),
     { plays: 290, likes: 118 },
+  ),
+
+  /* ---------- Roblox で人気のあそび風（ひとりで遊べるミニ版） ---------- */
+  make(
+    'popular_garden',
+    'はたけを そだてよう',
+    'Roblox で大人気「Grow a Garden」風。タネを買ってはたけにうえ、みずをやって、そだったら しゅうかくして売ろう。500 コインためたらクリア！',
+    'meadow',
+    '🧑‍🌾',
+    { mode: 'garden', speed: 3, jump: 3, lives: 1, timeLimit: 0, win: 'coins', enemySpeed: 0 },
+    NO_GRID,
+    { plays: 2400, likes: 910 },
+    'popular',
+  ),
+  make(
+    'popular_fishing',
+    'つりの たび',
+    '「Fisch」風のつりゲーム。タップでさおをなげ、「！」が出たら みどりのゾーンで タップ！レアな魚ほど むずかしい。90秒で 40 ポイントをめざせ。',
+    'ocean',
+    '🧑‍🎣',
+    { mode: 'fishing', speed: 3, jump: 3, lives: 1, timeLimit: 90, win: 'coins', enemySpeed: 0 },
+    NO_GRID,
+    { plays: 1800, likes: 640 },
+    'popular',
+  ),
+  make(
+    'popular_tower',
+    'てっぺんまで のぼれ！タワー',
+    '「Tower of Hell」風の 3D オビー。だんだん高くなる足場をジャンプでのぼり、いちばん上の穴（ゴール）にとびこもう。おちたらスタートから！',
+    'snow',
+    '🤖',
+    { mode: '3d', speed: 3, jump: 3, lives: 5, timeLimit: 0, win: 'goal', enemySpeed: 2 },
+    rows(
+      '5555555555555555',
+      '5.............55',
+      '5G............55',
+      '5555..........44',
+      '...........44444',
+      '...3333333.44...',
+      '...3.....3......',
+      '2222..P..3......',
+      '2..##o#E33......',
+      '2222............',
+    ),
+    { plays: 1500, likes: 520 },
+    'popular',
+  ),
+  make(
+    'popular_speedrun',
+    'スピードラン！',
+    '「Speed Run 4」風。60秒いないに 32 マスのコースをかけぬけろ！穴とトゲをジャンプでこえて、ばねで大ジャンプ。',
+    'candy',
+    '🦊',
+    { mode: '3d', speed: 5, jump: 3, lives: 3, timeLimit: 60, win: 'goal', enemySpeed: 0 },
+    rows(
+      '................................',
+      '..~~......~~.........~~.........',
+      'P###.##^^##.###S..###.###o###.#G',
+      '####.##^^##.###...###.###o###.##',
+      '....................o...........',
+      '................................',
+    ),
+    { plays: 1300, likes: 470 },
+    'popular',
+  ),
+  make(
+    'popular_town',
+    'ブロックの まち',
+    '「Brookhaven」風の まちを じゆうに さんぽ。おうちの間の道をあるいて、まちじゅうのコイン 13 まいをぜんぶ集めよう。まんなかの広場はのぼれるよ。いぬに注意！',
+    'meadow',
+    '🐶',
+    { mode: '3d', speed: 4, jump: 3, lives: 3, timeLimit: 0, win: 'coins', enemySpeed: 2 },
+    rows(
+      '########################',
+      '#WWWW#f#WWWW#f#WWWW#o#o#',
+      '#W22W###W22W###W22W#####',
+      '#WWWW#o#WWWW#f#WWWW#f#E#',
+      '########################',
+      '#f#o####~~~~####o#f#####',
+      '##########22############',
+      '#WWWWW#f#2222#f#WWWWW#o#',
+      '#W222W###2222###W222W###',
+      '#W2f2W#o#2222#o#W2f2W#f#',
+      '#WWWWW###2222###WWWWW###',
+      '########################',
+      '#o#f#E#o#f#o#E#f#o#f#o##',
+      '#P#####################G',
+    ),
+    { plays: 1100, likes: 430 },
+    'popular',
+  ),
+  make(
+    'popular_lava',
+    'フロア・イズ・ラバ',
+    '「The Floor is Lava」風。足元はぜんぶ ようがん！ほそい道と足場をつたって、ようがんに落ちないようにゴールまで行こう。',
+    'volcano',
+    '🦖',
+    { mode: '3d', speed: 3, jump: 3, lives: 3, timeLimit: 0, win: 'goal', enemySpeed: 0 },
+    rows(
+      'wwwwwwwwwwww',
+      'wP##wwwwwwww',
+      'www#wwwwwwww',
+      'www#w222wwww',
+      'wwwwwwww2www',
+      'www~wwww#oww',
+      'www#wwwwwwww',
+      'www##o#wwwww',
+      'wwwwww#w#w#G',
+      'wwwwwwwwwwww',
+    ),
+    { plays: 900, likes: 380 },
+    'popular',
   ),
 ];

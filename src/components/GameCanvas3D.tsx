@@ -75,7 +75,7 @@ export function GameCanvas3D({ game, onFinish, onHud, resetKey = 0, autoStart = 
   const simRef = useRef<Sim3D | null>(null);
   const keysRef = useRef<Keys>(emptyKeys());
   const stickRef = useRef({ x: 0, y: 0, jump: false });
-  const camRef = useRef<CameraState>({ yaw: Math.PI, pitch: 0.55, distance: 9 });
+  const camRef = useRef<CameraState>({ yaw: Math.PI, pitch: 0.5, distance: 6.5 });
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
   const onHudRef = useRef(onHud);
@@ -91,7 +91,7 @@ export function GameCanvas3D({ game, onFinish, onHud, resetKey = 0, autoStart = 
     finishedRef.current = false;
     keysRef.current = emptyKeys();
     stickRef.current = { x: 0, y: 0, jump: false };
-    camRef.current = { yaw: Math.PI, pitch: 0.55, distance: 9 };
+    camRef.current = { yaw: Math.PI, pitch: 0.5, distance: 6.5 };
     const s = simRef.current;
     onHudRef.current?.({ lives: s.lives, coins: 0, total: s.totalCoins, score: 0, keys: 0, time: s.remainingTime });
     setStarted(autoStart);
@@ -124,7 +124,7 @@ export function GameCanvas3D({ game, onFinish, onHud, resetKey = 0, autoStart = 
     if (!canvas || !wrap || !sim) return;
     let renderer: Renderer3D;
     try {
-      renderer = new Renderer3D(canvas, game, getState().profile.avatar.color);
+      renderer = new Renderer3D(canvas, game, getState().profile.avatar);
     } catch {
       setWebglError(true);
       return;

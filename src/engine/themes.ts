@@ -16,6 +16,10 @@ export interface ThemeDef {
   wallEdge: string;
   /** 背景に散らす飾り */
   decor: string[];
+  /** 「みず」タイルの色（かざんでは溶岩になる） */
+  liquid?: string;
+  liquidLight?: string;
+  liquidName?: string;
 }
 
 export const THEMES: readonly ThemeDef[] = [
@@ -88,6 +92,9 @@ export const THEMES: readonly ThemeDef[] = [
     wall: '#5a3a3a',
     wallEdge: '#a06a55',
     decor: ['🔥', '🌋', '💥'],
+    liquid: '#ff5a1f',
+    liquidLight: '#ffb347',
+    liquidName: 'ようがん',
   },
   {
     id: 'snow',
@@ -107,6 +114,12 @@ export const THEMES: readonly ThemeDef[] = [
 
 export function themeDef(id: ThemeId): ThemeDef {
   return THEMES.find((t) => t.id === id) ?? THEMES[0];
+}
+
+/** 「みず」タイルの色（テーマごと） */
+export function liquidColors(id: ThemeId): { main: string; light: string } {
+  const th = themeDef(id);
+  return { main: th.liquid ?? '#2196f3', light: th.liquidLight ?? '#90caf9' };
 }
 
 export const HEROES: readonly string[] = ['🙂', '😺', '🐶', '🐰', '🐸', '🦊', '🐼', '🦄', '🤖', '👻', '🐧', '🦖'];

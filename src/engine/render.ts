@@ -1,6 +1,6 @@
 import type { GameRuntime } from './runtime';
-import { themeDef } from './themes';
-import { tileDef, tileFromChar } from './tiles';
+import { liquidColors, themeDef } from './themes';
+import { stepHeight, tileDef, tileFromChar } from './tiles';
 import type { GameData, TileId } from './types';
 
 export interface Camera {
@@ -75,11 +75,29 @@ function drawTile(ctx: CanvasRenderingContext2D, t: TileId, px: number, py: numb
       ctx.fill();
       return;
     case 'water': {
-      ctx.fillStyle = '#2196f3';
+      const lc = liquidColors(game.theme);
+      ctx.fillStyle = lc.main;
       ctx.fillRect(px, py + s * 0.25, s + 0.5, s * 0.75 + 0.5);
-      ctx.fillStyle = '#90caf9';
+      ctx.fillStyle = lc.light;
       const wave = Math.sin(time * 4 + gx) * s * 0.05;
       ctx.fillRect(px, py + s * 0.25 + wave, s + 0.5, s * 0.1);
+      return;
+    }
+    case 'step2':
+    case 'step3':
+    case 'step4':
+    case 'step5': {
+      // 2D では高い床＝壁のようなブロック。段数を書いておく
+      const h = stepHeight(t) ?? 2;
+      ctx.fillStyle = shade(th.ground, 1 + h * 0.12);
+      ctx.fillRect(px, py, s + 0.5, s + 0.5);
+      ctx.fillStyle = th.groundEdge;
+      ctx.fillRect(px, py, s + 0.5, Math.max(2, s * 0.18));
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.font = `bold ${Math.round(s * 0.45)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(h), px + s / 2, py + s * 0.6);
       return;
     }
     case 'cloud':
@@ -228,8 +246,9 @@ export function renderIsometric(ctx: CanvasRenderingContext2D, game: GameData, w
     if (t === 'wall' || t === 'door') return 3;
     if (t === 'water') return 0.6;
     if (t === 'cloud') return 2.5;
-    return 1;
+    return stepHeight(t) ?? 1;
   };
+  const lc = liquidColors(game.theme);
 
   const drawBlock = (x: number, y: number, bottom: number, top: number, topColor: string, sideColor: string) => {
     const a = px(x, y, top);
@@ -277,14 +296,15 @@ export function renderIsometric(ctx: CanvasRenderingContext2D, game: GameData, w
       const top = heightOf(t);
       if (top === 0) continue;
       if (t === 'wall' || t === 'door') drawBlock(x, y, 0, top, t === 'door' ? '#a86c3a' : th.wallEdge, t === 'door' ? '#8b5a2b' : th.wall);
-      else if (t === 'water') drawBlock(x, y, 0, top, '#64b5f6', '#1e88e5');
+      else if (t === 'water') drawBlock(x, y, 0, top, lc.light, lc.main);
       else if (t === 'cloud') drawBlock(x, y, 2, top, '#ffffff', '#e3f2fd');
-      else drawBlock(x, y, 0, 1, (x + y) % 2 === 0 ? th.floor : th.floorAlt, th.ground);
+      else if (top > 1) drawBlock(x, y, 0, top, shade(th.floor, 1 + (top - 1) * 0.16), shade(th.ground, 1 + (top - 1) * 0.1));
+      else drawBlock(x, y, 0, top, (x + y) % 2 === 0 ? th.floor : th.floorAlt, th.ground);
       // 上に載る物
       const def = tileDef(t);
       let emoji = '';
       if (t === 'start') emoji = showStart ? game.hero : '';
-      else if (t !== 'ground' && t !== 'wall' && t !== 'door' && t !== 'water' && t !== 'cloud' && t !== 'empty') emoji = def.emoji;
+      else if (t !== 'ground' && t !== 'wall' && t !== 'door' && t !== 'water' && t !== 'cloud' && t !== 'empty' && stepHeight(t) === null) emoji = def.emoji;
       if (emoji) {
         const c = px(x + 0.5, y + 0.5, top);
         ctx.font = `${Math.round(tw * 0.55)}px serif`;
@@ -296,8 +316,32 @@ export function renderIsometric(ctx: CanvasRenderingContext2D, game: GameData, w
   }
 }
 
+/** ミニゲーム（はたけ・つり）のサムネイル */
+function renderMiniThumb(ctx: CanvasRenderingContext2D, game: GameData, w: number, h: number): void {
+  const th = themeDef(game.theme);
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, th.skyTop);
+  g.addColorStop(1, th.skyBottom);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  const garden = game.rules.mode === 'garden';
+  ctx.fillStyle = garden ? '#6d4c2a' : '#1e88e5';
+  ctx.fillRect(0, h * 0.55, w, h * 0.45);
+  ctx.font = `${Math.round(h * 0.28)}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const items = garden ? ['🥕', '🍓', '🌽', '🎃'] : ['🐟', '🐠', '🦈', '🐡'];
+  items.forEach((e, i) => ctx.fillText(e, (w * (i + 0.5)) / items.length, h * (garden ? 0.6 : 0.78)));
+  ctx.font = `${Math.round(h * 0.34)}px serif`;
+  ctx.fillText(garden ? '🧑‍🌾' : '🎣', w * 0.5, h * 0.3);
+}
+
 /** エディタ用：静止したマップを描く（サムネイルにも使う） */
 export function renderStatic(ctx: CanvasRenderingContext2D, game: GameData, w: number, h: number, showStart = true): void {
+  if (game.rules.mode === 'garden' || game.rules.mode === 'fishing') {
+    renderMiniThumb(ctx, game, w, h);
+    return;
+  }
   if (game.rules.mode === '3d') {
     renderIsometric(ctx, game, w, h, showStart);
     return;

@@ -91,6 +91,38 @@ function ResultModal({ result, game, onRetry, onLeave, published }: { result: Ga
 function PauseMenu({ onResume, onRestart, onLeave, game }: { onResume: () => void; onRestart: () => void; onLeave: () => void; game: GameData }) {
   const is3d = game.rules.mode === '3d';
   const platformer = game.rules.mode === 'platformer';
+  const mini = game.rules.mode === 'garden' || game.rules.mode === 'fishing';
+  if (mini) {
+    return (
+      <Modal onClose={onResume}>
+        <div className="pause-menu">
+          <div className="pause-head">
+            <img src={`${import.meta.env.BASE_URL}icons/logo.svg`} alt="" width={40} height={40} />
+            <h2>{game.title || 'なまえのないゲーム'}</h2>
+          </div>
+          <div className="pause-actions">
+            <button className="btn btn-primary btn-lg" onClick={onResume}>
+              ▶ つづける
+            </button>
+            <button className="btn btn-lg" onClick={onRestart}>
+              🔁 さいしょから
+            </button>
+            <button className="btn btn-lg btn-danger" onClick={onLeave}>
+              🚪 ゲームをやめる
+            </button>
+          </div>
+          <div className="pause-help">
+            <h3>そうさほうほう</h3>
+            <p className="hint">
+              {game.rules.mode === 'garden'
+                ? 'したの タネをえらんで、あいている はたけをタップ。💧 のはたけをタップすると みずやり。そだったらタップで しゅうかく！'
+                : '画面をタップして さおをなげる。「！」が出たら、みどりのゾーンに マーカーが来たしゅんかんに タップ！'}
+            </p>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
   return (
     <Modal onClose={onResume}>
       <div className="pause-menu">

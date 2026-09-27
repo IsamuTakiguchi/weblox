@@ -22,7 +22,9 @@ export function GameDetail({ game, shared, onPlay }: { game: GameData; shared?: 
   const profile = useStore((s) => s.profile);
   const th = themeDef(game.theme);
   const mine = Boolean(getDraft(game.id));
-  const modeLabel = game.rules.mode === '3d' ? '🧊 3D' : game.rules.mode === 'platformer' ? '🦘 ジャンプ' : '🚶 あるく';
+  const modeLabel =
+    game.rules.mode === '3d' ? '🧊 3D' : game.rules.mode === 'platformer' ? '🦘 ジャンプ' : game.rules.mode === 'garden' ? '🌱 はたけ' : game.rules.mode === 'fishing' ? '🎣 つり' : '🚶 あるく';
+  const mini = game.rules.mode === 'garden' || game.rules.mode === 'fishing';
 
   const play = () => {
     sfx.tap();
@@ -118,8 +120,17 @@ export function GameDetail({ game, shared, onPlay }: { game: GameData; shared?: 
             <h3>せつめい</h3>
             <p>{game.description || 'せつめいは ありません。'}</p>
             <p className="hint">
-              {game.rules.win === 'coins' ? '🪙 コインをぜんぶ集めるとクリア' : game.rules.win === 'both' ? '🪙 コインをぜんぶ集めてから 🚩 ゴールへ' : '🚩 ゴールに着くとクリア'}
-              {game.rules.timeLimit > 0 ? ` · ⏱ ${game.rules.timeLimit}秒` : ''} · ❤️ ライフ {game.rules.lives}
+              {game.rules.mode === 'garden'
+                ? '◈ 500 コインためるとクリア · タップだけで あそべる'
+                : game.rules.mode === 'fishing'
+                  ? '⭐ 40 ポイントでクリア · タップだけで あそべる'
+                  : game.rules.win === 'coins'
+                    ? '🪙 コインをぜんぶ集めるとクリア'
+                    : game.rules.win === 'both'
+                      ? '🪙 コインをぜんぶ集めてから 🚩 ゴールへ'
+                      : '🚩 ゴールに着くとクリア'}
+              {game.rules.timeLimit > 0 ? ` · ⏱ ${game.rules.timeLimit}秒` : ''}
+              {mini ? '' : ` · ❤️ ライフ ${game.rules.lives}`}
             </p>
           </section>
         </div>

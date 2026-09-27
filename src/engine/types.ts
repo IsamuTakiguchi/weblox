@@ -16,10 +16,23 @@ export type TileId =
   | 'portal'
   | 'flower'
   | 'goal'
-  | 'start';
+  | 'start'
+  /** 3D 用の高い床（2〜5 段）。2D では壁／床として扱う */
+  | 'step2'
+  | 'step3'
+  | 'step4'
+  | 'step5';
 
-/** 上から見る（あるく）か、横から見る（ジャンプ）か、立体（3D） */
-export type GameMode = 'topdown' | 'platformer' | '3d';
+/**
+ * 上から見る（あるく）、横から見る（ジャンプ）、立体（3D）、
+ * それにマップを使わないミニゲーム（はたけ・つり）
+ */
+export type GameMode = 'topdown' | 'platformer' | '3d' | 'garden' | 'fishing';
+
+/** マップ（タイル）で遊ぶモードか */
+export function isTileMode(mode: GameMode): boolean {
+  return mode === 'topdown' || mode === 'platformer' || mode === '3d';
+}
 
 /** クリア条件 */
 export type WinCondition = 'goal' | 'coins' | 'both';
@@ -68,6 +81,8 @@ export interface PublishedGame extends GameData {
   likes: number;
   /** 同梱サンプルなら true（削除不可） */
   featured?: boolean;
+  /** ホームで並べるコレクション名（例: 'popular' = Roblox で人気のあそび風） */
+  collection?: string;
 }
 
 export type GameOutcome = 'win' | 'lose';

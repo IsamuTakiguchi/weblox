@@ -56,7 +56,7 @@ function unpack(p: unknown): GameData | null {
   const theme: ThemeId = THEMES.some((t) => t.id === o.th) ? (o.th as ThemeId) : 'meadow';
   const rr = Array.isArray(o.r) ? o.r : [];
   const base = defaultRules();
-  const mode: GameMode = rr[0] === 'platformer' || rr[0] === '3d' ? rr[0] : 'topdown';
+  const mode: GameMode = rr[0] === 'platformer' || rr[0] === '3d' || rr[0] === 'garden' || rr[0] === 'fishing' ? rr[0] : 'topdown';
   const win: WinCondition = rr[5] === 'coins' || rr[5] === 'both' ? rr[5] : 'goal';
   const rules: GameRules = {
     mode,

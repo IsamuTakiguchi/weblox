@@ -10,7 +10,7 @@
  */
 import { findTiles } from '../engine/level';
 import type { RuntimeEvent } from '../engine/runtime';
-import { tileDef, tileFromChar } from '../engine/tiles';
+import { stepHeight, tileDef, tileFromChar } from '../engine/tiles';
 import type { GameData, GameResult, TileId } from '../engine/types';
 
 export interface Player3D {
@@ -138,8 +138,10 @@ export class Sim3D {
         return { top: CLOUD_TOP, solid: false, cloud: true, tile };
       case 'water':
         return { top: WATER_TOP, solid: false, cloud: false, tile };
-      default:
-        return { top: 1, solid: false, cloud: false, tile };
+      default: {
+        const h = stepHeight(tile);
+        return { top: h ?? 1, solid: false, cloud: false, tile };
+      }
     }
   }
 

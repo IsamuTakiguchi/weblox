@@ -6,6 +6,8 @@ import type { HudState } from './hud';
 
 // three.js を含む 3D 描画は必要なときだけ読み込む（2D だけ遊ぶ人の読み込みを軽くする）
 const GameCanvas3D = lazy(() => import('./GameCanvas3D'));
+const GardenGame = lazy(() => import('../games/GardenGame'));
+const FishingGame = lazy(() => import('../games/FishingGame'));
 
 interface Props {
   game: GameData;
@@ -42,7 +44,9 @@ export function AnyGameCanvas({ game, onFinish, resetKey, autoStart, paused, onM
   }, []);
 
   const hearts = '❤️'.repeat(Math.max(0, Math.min(9, hud.lives)));
-  const modeIcon = game.rules.mode === '3d' ? '🧊 3D' : game.rules.mode === 'platformer' ? '🦘' : '🚶';
+  const mode = game.rules.mode;
+  const mini = mode === 'garden' || mode === 'fishing';
+  const modeIcon = mode === '3d' ? '🧊 3D' : mode === 'platformer' ? '🦘' : mode === 'garden' ? '🌱' : mode === 'fishing' ? '🎣' : '🚶';
 
   const canvasProps = { game, onFinish, onHud, resetKey, autoStart, paused };
   return (
@@ -53,15 +57,39 @@ export function AnyGameCanvas({ game, onFinish, resetKey, autoStart, paused, onM
             <img src={`${import.meta.env.BASE_URL}icons/logo.svg`} alt="" width={28} height={28} />
           </button>
         )}
-        <span className="hud-item" title="ライフ">
-          {hearts || '💔'}
-        </span>
-        <span className="hud-item" title="コイン">
-          🪙 {hud.coins}/{hud.total}
-        </span>
-        <span className="hud-item" title="スコア">
-          ⭐ {hud.score}
-        </span>
+        {!mini && (
+          <span className="hud-item" title="ライフ">
+            {hearts || '💔'}
+          </span>
+        )}
+        {mode === 'garden' ? (
+          <>
+            <span className="hud-item" title="おかね">
+              ◈ {hud.score}
+            </span>
+            <span className="hud-item" title="しゅうかく">
+              🧺 {hud.coins}
+            </span>
+          </>
+        ) : mode === 'fishing' ? (
+          <>
+            <span className="hud-item" title="ポイント">
+              ⭐ {hud.score}
+            </span>
+            <span className="hud-item" title="つった数">
+              🐟 {hud.coins}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="hud-item" title="コイン">
+              🪙 {hud.coins}/{hud.total}
+            </span>
+            <span className="hud-item" title="スコア">
+              ⭐ {hud.score}
+            </span>
+          </>
+        )}
         {hud.keys > 0 && <span className="hud-item">🔑 {hud.keys}</span>}
         {hud.time !== null && (
           <span className={`hud-item ${hud.time < 10 ? 'hud-danger' : ''}`} title="のこり時間">
@@ -77,9 +105,17 @@ export function AnyGameCanvas({ game, onFinish, resetKey, autoStart, paused, onM
           </button>
         )}
       </div>
-      {game.rules.mode === '3d' ? (
+      {mode === '3d' ? (
         <Suspense fallback={<div className="canvas-wrap loading-3d">🧊 3D を よみこみ中…</div>}>
           <GameCanvas3D {...canvasProps} />
+        </Suspense>
+      ) : mode === 'garden' ? (
+        <Suspense fallback={<div className="canvas-wrap loading-3d">🌱 よみこみ中…</div>}>
+          <GardenGame game={game} onFinish={onFinish} onHud={onHud} resetKey={resetKey} paused={paused} />
+        </Suspense>
+      ) : mode === 'fishing' ? (
+        <Suspense fallback={<div className="canvas-wrap loading-3d">🎣 よみこみ中…</div>}>
+          <FishingGame game={game} onFinish={onFinish} onHud={onHud} resetKey={resetKey} paused={paused} />
         </Suspense>
       ) : (
         <GameCanvas {...canvasProps} />

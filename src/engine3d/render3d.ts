@@ -4,9 +4,11 @@
  */
 import * as THREE from 'three';
 import type { RuntimeEvent } from '../engine/runtime';
-import { themeDef } from '../engine/themes';
-import { tileDef, tileFromChar } from '../engine/tiles';
+import { liquidColors, themeDef } from '../engine/themes';
+import { stepHeight, tileDef, tileFromChar } from '../engine/tiles';
 import type { GameData, TileId } from '../engine/types';
+import type { AvatarConfig } from '../store/store';
+import { buildAvatar, type AvatarRig } from './avatar3d';
 import { CLOUD_BOTTOM, CLOUD_TOP, PLAYER_HEIGHT, type Sim3D, WALL_HEIGHT, WATER_TOP } from './sim';
 
 export interface CameraState {
@@ -49,39 +51,6 @@ interface Particle {
   life: number;
 }
 
-/** Roblox 風のブロックアバター */
-function buildAvatar(color: string, face: string): { group: THREE.Group; armL: THREE.Mesh; armR: THREE.Mesh; legL: THREE.Mesh; legR: THREE.Mesh } {
-  const group = new THREE.Group();
-  const skin = new THREE.MeshLambertMaterial({ color: '#f5d08a' });
-  const shirt = new THREE.MeshLambertMaterial({ color });
-  const pants = new THREE.MeshLambertMaterial({ color: '#2d3a5a' });
-
-  const mk = (w: number, h: number, d: number, mat: THREE.Material) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.castShadow = true;
-    return m;
-  };
-  const legL = mk(0.26, 0.6, 0.3, pants);
-  const legR = mk(0.26, 0.6, 0.3, pants);
-  legL.position.set(-0.15, 0.3, 0);
-  legR.position.set(0.15, 0.3, 0);
-  const torso = mk(0.6, 0.6, 0.32, shirt);
-  torso.position.set(0, 0.9, 0);
-  const armL = mk(0.22, 0.58, 0.28, shirt);
-  const armR = mk(0.22, 0.58, 0.28, shirt);
-  armL.position.set(-0.42, 0.9, 0);
-  armR.position.set(0.42, 0.9, 0);
-  const head = mk(0.5, 0.5, 0.5, skin);
-  head.position.set(0, 1.47, 0);
-  const facePlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.46, 0.46),
-    new THREE.MeshBasicMaterial({ map: emojiTexture(face), transparent: true, depthWrite: false }),
-  );
-  facePlane.position.set(0, 1.47, 0.26);
-  group.add(legL, legR, torso, armL, armR, head, facePlane);
-  return { group, armL, armR, legL, legR };
-}
-
 export class Renderer3D {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -90,12 +59,12 @@ export class Renderer3D {
   private items = new Map<number, THREE.Object3D>();
   private doors = new Map<number, THREE.Mesh>();
   private enemySprites: THREE.Sprite[] = [];
-  private avatar: ReturnType<typeof buildAvatar>;
+  private avatar: AvatarRig;
   private particles: Particle[] = [];
   private decor: THREE.Sprite[] = [];
   private sun: THREE.DirectionalLight;
 
-  constructor(canvas: HTMLCanvasElement, game: GameData, avatarColor: string) {
+  constructor(canvas: HTMLCanvasElement, game: GameData, avatarConfig: AvatarConfig) {
     this.game = game;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
@@ -140,7 +109,8 @@ export class Renderer3D {
       this.decor.push(s);
     }
 
-    this.avatar = buildAvatar(avatarColor, game.hero);
+    // 主人公＝自分のアバター（シャツの胸にはゲームの主人公絵文字をプリント）
+    this.avatar = buildAvatar(avatarConfig, game.hero);
     this.scene.add(this.avatar.group);
   }
 
@@ -153,7 +123,8 @@ export class Renderer3D {
     const wallMat = new THREE.MeshLambertMaterial({ color: th.wall });
     const wallTopMat = new THREE.MeshLambertMaterial({ color: th.wallEdge });
     const cloudMat = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.92 });
-    const waterMat = new THREE.MeshLambertMaterial({ color: '#2196f3', transparent: true, opacity: 0.8 });
+    const lc = liquidColors(g.theme);
+    const waterMat = new THREE.MeshLambertMaterial({ color: lc.main, transparent: true, opacity: 0.85, emissive: th.liquid ? lc.main : '#000000', emissiveIntensity: th.liquid ? 0.5 : 0 });
     const doorMat = new THREE.MeshLambertMaterial({ color: '#8b5a2b' });
     const spikeMat = new THREE.MeshLambertMaterial({ color: '#c0c0c0' });
     const springMat = new THREE.MeshLambertMaterial({ color: '#ffb300' });
@@ -164,6 +135,7 @@ export class Renderer3D {
       return t !== 'empty' && t !== 'wall' && t !== 'door' && t !== 'cloud' && t !== 'water';
     }).length;
     const wallCount = g.tiles.split('').filter((c) => tileFromChar(c) === 'wall').length;
+    const stepCount = g.tiles.split('').filter((c) => stepHeight(tileFromChar(c)) !== null).length;
 
     // 床ブロック：側面はテーマの土色、上面は市松の床色（マテリアル配列）
     const groundMats = [groundMat, groundMat, groundTopMat, groundMat, groundMat, groundMat];
@@ -171,7 +143,17 @@ export class Renderer3D {
     const groundA = new THREE.InstancedMesh(box, groundMats, Math.max(1, groundCount));
     const groundB = new THREE.InstancedMesh(box, groundAltMats, Math.max(1, groundCount));
     const walls = new THREE.InstancedMesh(box, [wallMat, wallMat, wallTopMat, wallMat, wallMat, wallMat], Math.max(1, wallCount));
-    for (const m of [groundA, groundB, walls]) {
+    // 高い床（段）：高いほど明るい色にして、段差が見分けやすいようにする
+    const stepMeshes = new Map<number, { mesh: THREE.InstancedMesh; i: number }>();
+    for (const h of [2, 3, 4, 5]) {
+      const top = new THREE.Color(th.floor).lerp(new THREE.Color('#ffffff'), (h - 1) * 0.16);
+      const side = new THREE.Color(th.ground).lerp(new THREE.Color('#ffffff'), (h - 1) * 0.1);
+      const topMat = new THREE.MeshLambertMaterial({ color: top });
+      const sideMat = new THREE.MeshLambertMaterial({ color: side });
+      const mesh = new THREE.InstancedMesh(box, [sideMat, sideMat, topMat, sideMat, sideMat, sideMat], Math.max(1, stepCount));
+      stepMeshes.set(h, { mesh, i: 0 });
+    }
+    for (const m of [groundA, groundB, walls, ...[...stepMeshes.values()].map((s) => s.mesh)]) {
       m.castShadow = true;
       m.receiveShadow = true;
     }
@@ -190,6 +172,13 @@ export class Renderer3D {
         if (t === 'wall') {
           mat4.makeScale(1, WALL_HEIGHT, 1).setPosition(cx, WALL_HEIGHT / 2, cz);
           walls.setMatrixAt(iw++, mat4);
+          continue;
+        }
+        const sh = stepHeight(t);
+        if (sh !== null) {
+          const entry = stepMeshes.get(sh)!;
+          mat4.makeScale(1, sh, 1).setPosition(cx, sh / 2, cz);
+          entry.mesh.setMatrixAt(entry.i++, mat4);
           continue;
         }
         if (t === 'door') {
@@ -250,6 +239,11 @@ export class Renderer3D {
     groundB.instanceMatrix.needsUpdate = true;
     walls.instanceMatrix.needsUpdate = true;
     this.scene.add(groundA, groundB, walls);
+    for (const { mesh, i } of stepMeshes.values()) {
+      mesh.count = i;
+      mesh.instanceMatrix.needsUpdate = true;
+      this.scene.add(mesh);
+    }
 
     // 奈落の底
     const abyssColor = new THREE.Color(th.skyTop).multiplyScalar(0.55);
@@ -347,19 +341,7 @@ export class Renderer3D {
     const av = this.avatar;
     av.group.position.set(p.x, p.y, p.z);
     av.group.rotation.y = p.yaw;
-    const moving = Math.hypot(p.vx, p.vz) > 0.1;
-    const swing = moving && p.onGround ? Math.sin(p.walkPhase) * 0.7 : p.onGround ? 0 : 0.5;
-    av.armL.rotation.x = swing;
-    av.armR.rotation.x = -swing;
-    av.legL.rotation.x = -swing;
-    av.legR.rotation.x = swing;
-    if (!p.onGround) {
-      av.armL.rotation.z = 0.6;
-      av.armR.rotation.z = -0.6;
-    } else {
-      av.armL.rotation.z = 0;
-      av.armR.rotation.z = 0;
-    }
+    av.pose(p.walkPhase, Math.hypot(p.vx, p.vz) > 0.1, p.onGround);
     av.group.visible = !(p.invincible > 0 && Math.floor(t * 12) % 2 === 0);
 
     // パーティクル

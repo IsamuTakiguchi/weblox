@@ -79,7 +79,8 @@ export function GameCard({ game, onClick }: { game: PublishedGame | GameData; on
       <div className="card-thumb">
         <Thumbnail game={game} />
         <span className="card-badge">
-          {th.emoji} {game.rules.mode === 'platformer' ? '🦘' : game.rules.mode === '3d' ? '🧊 3D' : '🚶'}
+          {th.emoji}{' '}
+          {game.rules.mode === 'platformer' ? '🦘' : game.rules.mode === '3d' ? '🧊 3D' : game.rules.mode === 'garden' ? '🌱' : game.rules.mode === 'fishing' ? '🎣' : '🚶'}
         </span>
       </div>
       <div className="card-body">
