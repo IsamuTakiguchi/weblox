@@ -78,6 +78,13 @@ textarea:focus {
 
 /* ---------- ヘッダー ---------- */
 
+/* ホーム画面から開いたアプリ（standalone）では、ステータスバーぶんの余白が 0 と報告される環境があるため、最低限の余白を確保する */
+@media (display-mode: standalone) {
+  .header {
+    padding-top: max(8px, calc(8px + env(safe-area-inset-top, 0px)));
+  }
+}
+
 .header {
   position: sticky;
   top: 0;
