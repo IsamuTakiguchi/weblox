@@ -64,6 +64,8 @@ export interface GameData {
   theme: ThemeId;
   /** 主人公の絵文字 */
   hero: string;
+  /** てきの絵文字（省略時は 👾）。きょうりゅう 🦖・おばけ 👻 などに変えてゲームの雰囲気を出す */
+  enemyEmoji?: string;
   width: number;
   height: number;
   /** 行優先。1 文字 = 1 マス（tiles.ts の charMap 参照） */

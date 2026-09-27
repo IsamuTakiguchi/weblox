@@ -8,8 +8,12 @@ export const GRID_SIZES: readonly { label: string; width: number; height: number
   { label: 'ちいさい 12×8', width: 12, height: 8 },
   { label: 'ふつう 16×10', width: 16, height: 10 },
   { label: 'おおきい 24×12', width: 24, height: 12 },
-  { label: 'とくだい 32×14', width: 32, height: 14 },
+  { label: 'とくだい 32×16', width: 32, height: 16 },
+  { label: 'パーク 40×20', width: 40, height: 20 },
 ];
+
+/** てきに使える絵文字（スタジオで選べる） */
+export const ENEMY_EMOJIS: readonly string[] = ['👾', '👻', '🦖', '🦇', '🐊', '🐍', '🦈', '🐝', '🤖', '😈', '🐺', '🎃'];
 
 export function newId(prefix = 'g'): string {
   const rand = Math.random().toString(36).slice(2, 8);
@@ -37,6 +41,7 @@ export function createGame(partial: Partial<GameData> = {}): GameData {
     authorAvatar: partial.authorAvatar ?? '🙂',
     theme: partial.theme ?? 'meadow',
     hero: partial.hero ?? '🙂',
+    enemyEmoji: partial.enemyEmoji,
     width,
     height,
     tiles: partial.tiles ?? emptyTiles(width, height),

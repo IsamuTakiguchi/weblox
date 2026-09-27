@@ -8,6 +8,7 @@ export function HomePage() {
   const profile = useStore((s) => s.profile);
   const featured = published.filter((g) => g.featured && g.collection !== 'popular');
   const popular = published.filter((g) => g.collection === 'popular');
+  const park = published.filter((g) => g.collection === 'park');
   const community = [...published.filter((g) => !g.featured)].sort((a, b) => b.publishedAt - a.publishedAt);
 
   return (
@@ -48,6 +49,20 @@ export function HomePage() {
           </div>
           <div className="row-scroll">
             {popular.map((g) => (
+              <GameCard key={g.id} game={g} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {park.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2 className="section-title">🎢 テーマパーク（USJ 風）</h2>
+            <span className="hint">おしろ・コースター・おばけやしき・きょうりゅう・ウォーターライド</span>
+          </div>
+          <div className="row-scroll">
+            {park.map((g) => (
               <GameCard key={g.id} game={g} />
             ))}
           </div>

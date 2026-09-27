@@ -111,6 +111,7 @@ function drawTile(ctx: CanvasRenderingContext2D, t: TileId, px: number, py: numb
       return;
     default: {
       const def = tileDef(t);
+      const emoji = t === 'enemy' ? (game.enemyEmoji ?? def.emoji) : def.emoji;
       let dy = 0;
       if (def.pickup) dy = Math.sin(time * 5 + gx * 0.7 + gy * 0.3) * s * 0.06;
       if (t === 'goal') dy = Math.sin(time * 3) * s * 0.04;
@@ -128,7 +129,7 @@ function drawTile(ctx: CanvasRenderingContext2D, t: TileId, px: number, py: numb
       ctx.font = `${Math.round(s * 0.78)}px serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(def.emoji, px + s / 2, py + s / 2 + dy + s * 0.02);
+      ctx.fillText(emoji, px + s / 2, py + s / 2 + dy + s * 0.02);
     }
   }
 }
@@ -179,7 +180,7 @@ export function renderRuntime(ctx: CanvasRenderingContext2D, rt: GameRuntime, w:
     ctx.save();
     ctx.translate(toPx(e.x + 0.5), toPy(e.y + 0.5) + bob);
     if (e.dir < 0) ctx.scale(-1, 1);
-    ctx.fillText(tileDef('enemy').emoji, 0, 0);
+    ctx.fillText(game.enemyEmoji ?? tileDef('enemy').emoji, 0, 0);
     ctx.restore();
   }
 
@@ -304,6 +305,7 @@ export function renderIsometric(ctx: CanvasRenderingContext2D, game: GameData, w
       const def = tileDef(t);
       let emoji = '';
       if (t === 'start') emoji = showStart ? game.hero : '';
+      else if (t === 'enemy') emoji = game.enemyEmoji ?? def.emoji;
       else if (t !== 'ground' && t !== 'wall' && t !== 'door' && t !== 'water' && t !== 'cloud' && t !== 'empty' && stepHeight(t) === null) emoji = def.emoji;
       if (emoji) {
         const c = px(x + 0.5, y + 0.5, top);

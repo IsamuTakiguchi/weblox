@@ -85,7 +85,8 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
+  /* iPhone のノッチ／ステータスバーの下に隠れないようにする */
+  padding: calc(8px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) 8px calc(16px + env(safe-area-inset-left, 0px));
   background: rgba(15, 20, 32, 0.92);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
@@ -170,7 +171,7 @@ textarea:focus {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px 16px 96px;
+  padding: 20px calc(16px + env(safe-area-inset-right, 0px)) calc(96px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
   flex: 1;
 }
 
@@ -875,7 +876,8 @@ body.immersive-open {
   display: flex;
   flex-direction: column;
   background: #000;
-  padding-top: env(safe-area-inset-top);
+  /* ノッチ・ホームバー・角丸の分を空ける */
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
 }
 
 .immersive .play-wrap {
@@ -884,21 +886,15 @@ body.immersive-open {
   gap: 0;
 }
 
+/* バーはゲーム画面に重ねず、上に置く（マップの上の段が隠れないように） */
 .immersive .topbar {
-  position: absolute;
-  top: calc(6px + env(safe-area-inset-top));
-  left: 8px;
-  right: 8px;
-  z-index: 2;
-  background: rgba(10, 14, 24, 0.55);
-  backdrop-filter: blur(8px);
+  flex: 0 0 auto;
+  margin: 4px 6px;
+  background: rgba(10, 14, 24, 0.85);
   border-color: rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  pointer-events: none;
-}
-
-.immersive .topbar > * {
-  pointer-events: auto;
+  border-radius: 12px;
+  min-height: 42px;
+  padding: 4px 8px;
 }
 
 .immersive .canvas-wrap {
@@ -947,8 +943,8 @@ body.immersive-open {
 
 .jump-btn {
   position: absolute;
-  right: 24px;
-  bottom: 24px;
+  right: calc(24px + env(safe-area-inset-right, 0px));
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   width: 84px;
   height: 84px;
   border-radius: 50%;
@@ -1816,7 +1812,7 @@ body.immersive-open {
 .immersive .mini {
   min-height: 0;
   height: 100%;
-  padding-top: 64px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   border-radius: 0;
 }
 

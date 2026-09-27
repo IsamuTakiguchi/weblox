@@ -4,7 +4,7 @@ import { fireConfetti, toast } from '../components/feedback';
 import { AnyGameCanvas } from '../components/AnyGameCanvas';
 import { GridEditor } from '../components/GridEditor';
 import { Modal } from '../components/ui';
-import { autoFix, createGame, defaultRules, emptyTiles, fillAll, fillFloor, GRID_SIZES, randomLevel, resizeTiles, validateGame } from '../engine/level';
+import { autoFix, createGame, defaultRules, emptyTiles, ENEMY_EMOJIS, fillAll, fillFloor, GRID_SIZES, randomLevel, resizeTiles, validateGame } from '../engine/level';
 import { HEROES, THEMES } from '../engine/themes';
 import { PRO_PALETTE, tileDef } from '../engine/tiles';
 import type { GameData, GameMode, GameResult, TileId, WinCondition } from '../engine/types';
@@ -176,7 +176,7 @@ export function StudioPage({ id }: { id?: string }) {
               const d = tileDef(t);
               return (
                 <button key={t} className={`palette-btn ${tool === t ? 'selected' : ''}`} onClick={() => setTool(t)} title={d.hint} aria-pressed={tool === t}>
-                  <span className="palette-emoji">{t === 'start' ? game.hero : d.emoji}</span>
+                  <span className="palette-emoji">{t === 'start' ? game.hero : t === 'enemy' ? (game.enemyEmoji ?? d.emoji) : d.emoji}</span>
                   <span>{d.label}</span>
                 </button>
               );
@@ -263,6 +263,16 @@ export function StudioPage({ id }: { id?: string }) {
               {HEROES.map((h) => (
                 <button key={h} className={game.hero === h ? 'on' : ''} onClick={() => update({ hero: h })}>
                   {h}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="field">
+            <label>てき（きょうりゅう・おばけなどに変えられる）</label>
+            <div className="seg" style={{ flexWrap: 'wrap' }}>
+              {ENEMY_EMOJIS.map((e) => (
+                <button key={e} className={(game.enemyEmoji ?? '👾') === e ? 'on' : ''} onClick={() => update({ enemyEmoji: e === '👾' ? undefined : e })}>
+                  {e}
                 </button>
               ))}
             </div>

@@ -7,6 +7,8 @@ const INTRO = 'どっちで つくる？ かんたんモードは 絵をおく�
 
 export function CreatePage() {
   const drafts = useStore((s) => s.drafts);
+  const published = useStore((s) => s.published);
+  const templates = published.filter((g) => g.featured && g.rules.mode === '3d');
   return (
     <main className="page">
       <div className="kid-title">
@@ -49,6 +51,25 @@ export function CreatePage() {
           </span>
         </a>
       </div>
+
+      <section className="section">
+        <div className="section-head">
+          <h2 className="section-title">🧊 3D テンプレートから つくる</h2>
+          <span className="hint">サンプルのマップをコピーして、自分だけのパークやオビーに</span>
+        </div>
+        <div className="row-scroll">
+          {templates.map((g) => (
+            <div key={g.id} className="card" style={{ padding: 0 }}>
+              <GameCard game={g} onClick={() => (location.hash = hrefFor({ name: 'studio', id: g.id }))} />
+              <div className="card-actions">
+                <a className="btn btn-sm btn-blue" href={hrefFor({ name: 'studio', id: g.id })}>
+                  🛠️ このマップから つくる
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {drafts.length > 0 && (
         <section className="section">

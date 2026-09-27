@@ -19,6 +19,8 @@ interface Packed {
   r: [GameMode, number, number, number, number, WinCondition, number];
   k: 0 | 1;
   c: number;
+  /** てきの絵文字（省略可） */
+  ee?: string;
 }
 
 function pack(g: GameData): Packed {
@@ -38,6 +40,7 @@ function pack(g: GameData): Packed {
     r: [r.mode, r.speed, r.jump, r.lives, r.timeLimit, r.win, r.enemySpeed],
     k: g.kidMode ? 1 : 0,
     c: g.createdAt,
+    ...(g.enemyEmoji ? { ee: g.enemyEmoji } : {}),
   };
 }
 
@@ -76,6 +79,7 @@ function unpack(p: unknown): GameData | null {
     authorAvatar: str(o.av, 8, '🙂'),
     theme,
     hero: str(o.h, 8, '🙂'),
+    enemyEmoji: typeof o.ee === 'string' ? o.ee.slice(0, 8) : undefined,
     width,
     height,
     tiles: o.m,

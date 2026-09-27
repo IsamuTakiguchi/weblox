@@ -80,6 +80,7 @@ export function GridEditor({ game, tool, onChange, cell }: Props) {
     if (t.startsWith('step')) bg = th.groundEdge;
     let content = '';
     if (t === 'start') content = game.hero;
+    else if (t === 'enemy') content = game.enemyEmoji ?? def.emoji;
     else if (t !== 'empty' && t !== 'ground' && t !== 'wall') content = def.emoji;
     cells.push(
       <div

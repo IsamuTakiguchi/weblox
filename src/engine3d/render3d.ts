@@ -257,7 +257,7 @@ export class Renderer3D {
     for (const s of this.enemySprites) this.scene.remove(s);
     this.enemySprites = [];
     for (let i = 0; i < count; i++) {
-      const s = makeSprite(tileDef('enemy').emoji, 0.95);
+      const s = makeSprite(this.game.enemyEmoji ?? tileDef('enemy').emoji, 0.95);
       this.scene.add(s);
       this.enemySprites.push(s);
     }
