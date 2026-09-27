@@ -4,7 +4,7 @@ import { fireConfetti, toast } from '../components/feedback';
 import { AnyGameCanvas } from '../components/AnyGameCanvas';
 import { GridEditor } from '../components/GridEditor';
 import { Modal } from '../components/ui';
-import { autoFix, createGame, defaultRules, emptyTiles, ENEMY_EMOJIS, fillAll, fillFloor, GRID_SIZES, randomLevel, resizeTiles, validateGame } from '../engine/level';
+import { autoFix, createGame, defaultRules, emptyTiles, ENEMY_EMOJIS, fillAll, fillFloor, FLOOD_OPTIONS, GRID_SIZES, randomLevel, resizeTiles, validateGame } from '../engine/level';
 import { HEROES, THEMES } from '../engine/themes';
 import { PRO_PALETTE, tileDef } from '../engine/tiles';
 import type { GameData, GameMode, GameResult, TileId, WinCondition } from '../engine/types';
@@ -292,16 +292,40 @@ export function StudioPage({ id }: { id?: string }) {
                 🧊 3D（立体）
               </button>
             </div>
-            {game.rules.mode === '3d' && <span className="hint">3D では「けす」で空けたマスが奈落になります。かべは高さ 3、くもは浮いた足場です。</span>}
+            {game.rules.mode === '3d' && (
+              <span className="hint">3D では「けす」で空けたマスが奈落になります。かべは高さ 3、くもは浮いた足場。「レール」をつなげるとコースター、「おに」は追いかけてくる、「きえるゆか」は乗るとくずれます。</span>
+            )}
           </div>
           <div className="field">
             <label>クリア条件</label>
-            <select value={game.rules.win} onChange={(e) => updateRules({ win: e.target.value as WinCondition })}>
+            <select
+              value={game.rules.win}
+              onChange={(e) => {
+                const win = e.target.value as WinCondition;
+                updateRules(win === 'survive' && game.rules.timeLimit <= 0 ? { win, timeLimit: 60 } : { win });
+              }}
+            >
               <option value="goal">🚩 ゴールに着く</option>
               <option value="coins">🪙 コインをぜんぶ集める</option>
               <option value="both">🪙→🚩 コインをぜんぶ集めてゴール</option>
+              <option value="survive">⏱ 時間まで 生きのこる（おに・みずから にげる）</option>
             </select>
+            {game.rules.win === 'survive' && <span className="hint">「おに」👹 を置いたり、下の「みずが上がってくる」を使うと、にげるゲームになります。</span>}
           </div>
+          {game.rules.mode === '3d' && (
+            <div className="field">
+              <label>🌊 みず（かざんでは ようがん）が上がってくる</label>
+              <select value={game.rules.flood ?? 0} onChange={(e) => updateRules({ flood: Number(e.target.value) })}>
+                {FLOOD_OPTIONS.map((o) => (
+                  <option key={o.seconds} value={o.seconds}>
+                    {o.label}
+                  </option>
+                ))}
+                {(game.rules.flood ?? 0) > 0 && !FLOOD_OPTIONS.some((o) => o.seconds === game.rules.flood) && <option value={game.rules.flood}>{game.rules.flood} 秒</option>}
+              </select>
+              {(game.rules.flood ?? 0) > 0 && <span className="hint">だん4・だん5 の高い足場に登ってにげよう。だん5 の上だけは最後まで安全。</span>}
+            </div>
+          )}
           {range('はやさ', 'speed', 1, 5)}
           {game.rules.mode !== 'topdown' && range('ジャンプ力', 'jump', 1, 5)}
           {range('ライフ', 'lives', 1, 9)}

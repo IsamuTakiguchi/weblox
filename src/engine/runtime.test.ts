@@ -169,3 +169,52 @@ describe('GameRuntime (platformer)', () => {
     expect(rt.drainEvents()).toHaveLength(0);
   });
 });
+
+describe('GameRuntime hunters, checkpoints and survive', () => {
+  it('a hunter chases and catches the player in topdown mode', () => {
+    const rt = new GameRuntime(topdown(['P....H'], { lives: 2, enemySpeed: 3 }));
+    expect(rt.hunters).toHaveLength(1);
+    let caught = false;
+    for (let i = 0; i < 300 && !caught; i++) {
+      rt.step(1 / 60, idle);
+      if (rt.drainEvents().some((e) => e.type === 'caught')) caught = true;
+    }
+    expect(caught).toBe(true);
+    expect(rt.lives).toBe(1);
+    expect(rt.hunters[0].x).toBe(5);
+  });
+
+  it('a hunter walks around a wall in topdown mode', () => {
+    const rt = new GameRuntime(topdown(['P.W.H', '.....'], { lives: 1, enemySpeed: 5 }));
+    run(rt, idle, 4);
+    expect(rt.finished?.outcome).toBe('lose');
+  });
+
+  it('a hunter far away stays home', () => {
+    const rt = new GameRuntime(topdown(['P' + '.'.repeat(12) + 'H'], { lives: 1, enemySpeed: 5 }));
+    run(rt, idle, 2);
+    expect(rt.hunters[0].chasing).toBe(false);
+    expect(rt.finished).toBeNull();
+  });
+
+  it('a checkpoint becomes the respawn point', () => {
+    const rt = new GameRuntime(topdown(['PC.^G'], { lives: 3 }));
+    for (let i = 0; i < 600 && rt.lives === 3; i++) rt.step(1 / 60, right);
+    expect(rt.lives).toBe(2);
+    expect(rt.checkpointIdx).toBe(1);
+    expect(Math.floor(rt.player.x + rt.player.w / 2)).toBe(1);
+  });
+
+  it('survive rule wins when time runs out', () => {
+    const rt = new GameRuntime(topdown(['P....'], { timeLimit: 1, win: 'survive' }));
+    run(rt, idle, 2);
+    expect(rt.finished?.outcome).toBe('win');
+  });
+
+  it('rail and crumble tiles are solid blocks in 2D', () => {
+    const rt = new GameRuntime(topdown(['P.=cG']));
+    run(rt, right, 3);
+    expect(rt.finished).toBeNull();
+    expect(rt.player.x).toBeLessThan(2);
+  });
+});

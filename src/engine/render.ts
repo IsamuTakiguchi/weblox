@@ -1,6 +1,6 @@
 import type { GameRuntime } from './runtime';
 import { liquidColors, themeDef } from './themes';
-import { stepHeight, tileDef, tileFromChar } from './tiles';
+import { hunterEmoji, stepHeight, tileDef, tileFromChar } from './tiles';
 import type { GameData, TileId } from './types';
 
 export interface Camera {
@@ -37,7 +37,7 @@ function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number, gam
 function drawTile(ctx: CanvasRenderingContext2D, t: TileId, px: number, py: number, s: number, game: GameData, time: number, gx: number, gy: number): void {
   const th = themeDef(game.theme);
   const topdown = game.rules.mode === 'topdown';
-  if (topdown && t !== 'wall' && t !== 'ground' && t !== 'door') {
+  if (topdown && t !== 'wall' && t !== 'ground' && t !== 'door' && t !== 'rail' && t !== 'crumble') {
     // 市松模様の床
     ctx.fillStyle = (gx + gy) % 2 === 0 ? th.floor : th.floorAlt;
     ctx.fillRect(px, py, s + 0.5, s + 0.5);
@@ -106,12 +106,38 @@ function drawTile(ctx: CanvasRenderingContext2D, t: TileId, px: number, py: numb
       ctx.roundRect(px + s * 0.02, py + s * 0.3, s * 0.96, s * 0.5, s * 0.25);
       ctx.fill();
       return;
+    case 'rail': {
+      // 床の上にレール 2 本とまくら木
+      ctx.fillStyle = th.ground;
+      ctx.fillRect(px, py, s + 0.5, s + 0.5);
+      ctx.fillStyle = '#8d6e63';
+      for (let i = 0; i < 3; i++) ctx.fillRect(px + s * 0.1, py + s * (0.2 + i * 0.3), s * 0.8, s * 0.1);
+      ctx.fillStyle = '#eceff1';
+      ctx.fillRect(px + s * 0.25, py, s * 0.1, s + 0.5);
+      ctx.fillRect(px + s * 0.65, py, s * 0.1, s + 0.5);
+      return;
+    }
+    case 'crumble': {
+      // ひびの入った床
+      ctx.fillStyle = shade(th.ground, 1.15);
+      ctx.fillRect(px, py, s + 0.5, s + 0.5);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = Math.max(1, s * 0.05);
+      ctx.beginPath();
+      ctx.moveTo(px + s * 0.2, py + s * 0.1);
+      ctx.lineTo(px + s * 0.45, py + s * 0.5);
+      ctx.lineTo(px + s * 0.3, py + s * 0.9);
+      ctx.moveTo(px + s * 0.45, py + s * 0.5);
+      ctx.lineTo(px + s * 0.85, py + s * 0.65);
+      ctx.stroke();
+      return;
+    }
     case 'empty':
     case 'start':
       return;
     default: {
       const def = tileDef(t);
-      const emoji = t === 'enemy' ? (game.enemyEmoji ?? def.emoji) : def.emoji;
+      const emoji = t === 'enemy' ? (game.enemyEmoji ?? def.emoji) : t === 'hunter' ? hunterEmoji(game) : def.emoji;
       let dy = 0;
       if (def.pickup) dy = Math.sin(time * 5 + gx * 0.7 + gy * 0.3) * s * 0.06;
       if (t === 'goal') dy = Math.sin(time * 3) * s * 0.04;
@@ -182,6 +208,21 @@ export function renderRuntime(ctx: CanvasRenderingContext2D, rt: GameRuntime, w:
     if (e.dir < 0) ctx.scale(-1, 1);
     ctx.fillText(game.enemyEmoji ?? tileDef('enemy').emoji, 0, 0);
     ctx.restore();
+  }
+  // おに（追いかけているときは「！」を出す）
+  for (const h of rt.hunters) {
+    const bob = Math.sin(h.phase * 8) * s * (h.chasing ? 0.08 : 0.04);
+    ctx.save();
+    ctx.translate(toPx(h.x + 0.5), toPy(h.y + 0.5) + bob);
+    if (h.facing < 0) ctx.scale(-1, 1);
+    ctx.font = `${Math.round(s * 0.9)}px serif`;
+    ctx.fillText(hunterEmoji(game), 0, 0);
+    ctx.restore();
+    if (h.chasing) {
+      ctx.font = `${Math.round(s * 0.5)}px serif`;
+      ctx.fillText('❗', toPx(h.x + 0.5), toPy(h.y - 0.15));
+      ctx.font = `${Math.round(s * 0.8)}px serif`;
+    }
   }
 
   // 主人公
@@ -300,12 +341,16 @@ export function renderIsometric(ctx: CanvasRenderingContext2D, game: GameData, w
       else if (t === 'water') drawBlock(x, y, 0, top, lc.light, lc.main);
       else if (t === 'cloud') drawBlock(x, y, 2, top, '#ffffff', '#e3f2fd');
       else if (top > 1) drawBlock(x, y, 0, top, shade(th.floor, 1 + (top - 1) * 0.16), shade(th.ground, 1 + (top - 1) * 0.1));
+      else if (t === 'rail') drawBlock(x, y, 0, top, '#8d6e63', '#5d4037');
+      else if (t === 'crumble') drawBlock(x, y, 0, top, shade(th.floor, 0.8), shade(th.ground, 0.8));
       else drawBlock(x, y, 0, top, (x + y) % 2 === 0 ? th.floor : th.floorAlt, th.ground);
       // 上に載る物
       const def = tileDef(t);
       let emoji = '';
       if (t === 'start') emoji = showStart ? game.hero : '';
       else if (t === 'enemy') emoji = game.enemyEmoji ?? def.emoji;
+      else if (t === 'hunter') emoji = hunterEmoji(game);
+      else if (t === 'rail' || t === 'crumble') emoji = '';
       else if (t !== 'ground' && t !== 'wall' && t !== 'door' && t !== 'water' && t !== 'cloud' && t !== 'empty' && stepHeight(t) === null) emoji = def.emoji;
       if (emoji) {
         const c = px(x + 0.5, y + 0.5, top);

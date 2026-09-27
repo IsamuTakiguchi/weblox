@@ -6,9 +6,10 @@ export function HomePage() {
   const published = useStore((s) => s.published);
   const drafts = useStore((s) => s.drafts);
   const profile = useStore((s) => s.profile);
-  const featured = published.filter((g) => g.featured && g.collection !== 'popular');
+  const featured = published.filter((g) => g.featured && !g.collection);
   const popular = published.filter((g) => g.collection === 'popular');
   const park = published.filter((g) => g.collection === 'park');
+  const escape = published.filter((g) => g.collection === 'escape');
   const community = [...published.filter((g) => !g.featured)].sort((a, b) => b.publishedAt - a.publishedAt);
 
   return (
@@ -41,11 +42,25 @@ export function HomePage() {
         </div>
       </section>
 
+      {escape.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2 className="section-title">🏃 にげろ！だっしゅつ ＆ サバイバル</h2>
+            <span className="hint">ろうごく・ブタ・こうずい・ようがん・かくれんぼ・ドア（Roblox の人気ゲーム風）</span>
+          </div>
+          <div className="row-scroll">
+            {escape.map((g) => (
+              <GameCard key={g.id} game={g} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {popular.length > 0 && (
         <section className="section">
           <div className="section-head">
             <h2 className="section-title">🔥 Roblox で人気のあそび（風）</h2>
-            <span className="hint">はたけ・つり・タワー・スピードラン・まち・ラバ</span>
+            <span className="hint">はたけ・つり・タワー・スピードラン・まち・ラバ・きえるゆか</span>
           </div>
           <div className="row-scroll">
             {popular.map((g) => (
@@ -59,7 +74,7 @@ export function HomePage() {
         <section className="section">
           <div className="section-head">
             <h2 className="section-title">🎢 テーマパーク（USJ 風）</h2>
-            <span className="hint">おしろ・コースター・おばけやしき・きょうりゅう・ウォーターライド</span>
+            <span className="hint">🎢 レールに乗る ほんものの コースター・ログフルーム・おしろ・おばけやしき・きょうりゅう</span>
           </div>
           <div className="row-scroll">
             {park.map((g) => (

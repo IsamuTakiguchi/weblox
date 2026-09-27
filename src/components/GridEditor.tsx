@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import { sfx } from '../audio';
 import { getTile, replaceAll, setTile } from '../engine/level';
 import { themeDef } from '../engine/themes';
-import { tileDef } from '../engine/tiles';
+import { hunterEmoji, tileDef } from '../engine/tiles';
 import type { GameData, TileId } from '../engine/types';
 
 interface Props {
@@ -81,7 +81,10 @@ export function GridEditor({ game, tool, onChange, cell }: Props) {
     let content = '';
     if (t === 'start') content = game.hero;
     else if (t === 'enemy') content = game.enemyEmoji ?? def.emoji;
+    else if (t === 'hunter') content = hunterEmoji(game);
     else if (t !== 'empty' && t !== 'ground' && t !== 'wall') content = def.emoji;
+    if (t === 'rail') bg = '#8d6e63';
+    if (t === 'crumble') bg = '#a1887f';
     cells.push(
       <div
         key={i}

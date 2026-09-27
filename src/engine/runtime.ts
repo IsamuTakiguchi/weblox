@@ -34,6 +34,17 @@ export interface Enemy {
   phase: number;
 }
 
+/** おに（追いかけてくる敵）。2D では上から見るモードで縦横に、ジャンプモードでは横に追いかける */
+export interface Hunter {
+  x: number;
+  y: number;
+  spawnX: number;
+  spawnY: number;
+  facing: 1 | -1;
+  phase: number;
+  chasing: boolean;
+}
+
 export interface Particle {
   x: number;
   y: number;
@@ -42,6 +53,9 @@ export interface Particle {
   life: number;
   text: string;
 }
+
+/** おにが気づく距離（マス、まっすぐの距離） */
+export const HUNTER_SIGHT_2D = 7;
 
 export type RuntimeEvent =
   | { type: 'coin' }
@@ -54,6 +68,13 @@ export type RuntimeEvent =
   | { type: 'stomp' }
   | { type: 'jump' }
   | { type: 'hurt' }
+  /** おにに つかまった（スタート／チェックポイントに戻る） */
+  | { type: 'caught' }
+  | { type: 'checkpoint' }
+  /** のりものに乗った */
+  | { type: 'ride' }
+  /** おにが こちらに気づいた */
+  | { type: 'alarm' }
   | { type: 'win' }
   | { type: 'lose' };
 
@@ -68,6 +89,7 @@ export class GameRuntime {
   tiles: string[];
   player: Player;
   enemies: Enemy[];
+  hunters: Hunter[];
   particles: Particle[] = [];
   score = 0;
   coins = 0;
@@ -78,10 +100,15 @@ export class GameRuntime {
   finished: GameResult | null = null;
   events: RuntimeEvent[] = [];
   time = 0;
+  /** 有効なチェックポイントのマス番号（なければ -1） */
+  checkpointIdx = -1;
 
   private jumpHeld = false;
   private startX = 0;
   private startY = 0;
+  private hunterAlarm = false;
+  private flow: Int32Array;
+  private flowTimer = 0;
 
   constructor(game: GameData) {
     this.game = game;
@@ -93,6 +120,9 @@ export class GameRuntime {
     this.startY = s.y;
     // スタートマス自体は通れる空マスとして扱う
     for (const p of starts) this.setTile(p.x, p.y, 'empty');
+    this.hunters = findTiles(game, 'hunter').map((p, i) => ({ x: p.x, y: p.y, spawnX: p.x, spawnY: p.y, facing: 1, phase: i * 1.7, chasing: false }));
+    this.flow = new Int32Array(game.width * game.height).fill(-1);
+    for (const h of this.hunters) this.setTile(h.x, h.y, 'empty');
     this.player = {
       x: s.x + (1 - PLAYER_W) / 2,
       y: s.y + (1 - PLAYER_H),
@@ -142,7 +172,8 @@ export class GameRuntime {
     const { rules } = this.game;
 
     if (rules.timeLimit > 0 && this.elapsed >= rules.timeLimit) {
-      this.end('lose');
+      // 生きのこるルールなら時間切れ＝クリア
+      this.end(rules.win === 'survive' ? 'win' : 'lose');
       return;
     }
 
@@ -184,9 +215,177 @@ export class GameRuntime {
     }
 
     this.updateEnemies(dt);
+    this.updateHunters(dt);
     this.checkTiles();
+    if (this.finished) return;
     this.checkEnemies();
+    if (this.finished) return;
+    this.checkHunters();
     this.updateParticles(dt);
+  }
+
+  /** マス (tx, ty) に 1×1 のキャラクターが入れるか */
+  private hunterCanStand(tx: number, ty: number): boolean {
+    if (tx < 0 || ty < 0 || tx >= this.width || ty >= this.height) return false;
+    const t = this.tileAt(tx, ty);
+    if (t === 'cloud') return this.game.rules.mode === 'topdown';
+    return !tileDef(t).solid;
+  }
+
+  /** プレイヤーの位置からの道のり（上から見るモードのおに用）。-1 は届かない */
+  private computeFlow(): void {
+    const w = this.width;
+    const flow = this.flow;
+    flow.fill(-1);
+    const p = this.player;
+    const sx = Math.floor(p.x + p.w / 2);
+    const sy = Math.floor(p.y + p.h / 2);
+    if (sx < 0 || sy < 0 || sx >= w || sy >= this.height) return;
+    const queue = [sy * w + sx];
+    flow[sy * w + sx] = 0;
+    let head = 0;
+    while (head < queue.length) {
+      const cur = queue[head++];
+      const cx = cur % w;
+      const cy = Math.floor(cur / w);
+      const d = flow[cur];
+      if (d >= HUNTER_SIGHT_2D) continue;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (!this.hunterCanStand(nx, ny)) continue;
+        const ni = ny * w + nx;
+        if (flow[ni] !== -1) continue;
+        flow[ni] = d + 1;
+        queue.push(ni);
+      }
+    }
+  }
+
+  private updateHunters(dt: number): void {
+    if (this.hunters.length === 0) return;
+    const es = this.game.rules.enemySpeed;
+    const p = this.player;
+    const px = p.x + p.w / 2 - 0.5;
+    const py = p.y + p.h / 2 - 0.5;
+    const v = es === 0 ? 0 : 1.6 + es * 0.6;
+    const topdown = this.game.rules.mode === 'topdown';
+    const w = this.width;
+    this.flowTimer -= dt;
+    if (topdown && this.flowTimer <= 0) {
+      this.computeFlow();
+      this.flowTimer = 0.15;
+    }
+    let anyChasing = false;
+    for (const h of this.hunters) {
+      h.phase += dt;
+      let tx = h.spawnX;
+      let ty = h.spawnY;
+      let chasing = false;
+      if (topdown) {
+        // 道のりでいちばん近いとなりのマスへ進む（かべを回りこめる）
+        const cx = Math.round(h.x);
+        const cy = Math.round(h.y);
+        const d = cx >= 0 && cy >= 0 && cx < w && cy < this.height ? this.flow[cy * w + cx] : -1;
+        if (d >= 0) {
+          chasing = true;
+          if (d === 0) {
+            tx = px;
+            ty = py;
+          } else {
+            let best = d;
+            tx = cx;
+            ty = cy;
+            for (const [ox, oy] of [
+              [1, 0],
+              [-1, 0],
+              [0, 1],
+              [0, -1],
+            ]) {
+              const nx = cx + ox;
+              const ny = cy + oy;
+              if (nx < 0 || ny < 0 || nx >= w || ny >= this.height) continue;
+              const nd = this.flow[ny * w + nx];
+              if (nd >= 0 && nd < best) {
+                best = nd;
+                tx = nx;
+                ty = ny;
+              }
+            }
+          }
+        }
+      } else {
+        chasing = Math.hypot(px - h.x, py - h.y) <= HUNTER_SIGHT_2D;
+        if (chasing) {
+          tx = px;
+          ty = h.y;
+        }
+      }
+      h.chasing = chasing;
+      if (chasing) anyChasing = true;
+      const dx = tx - h.x;
+      const dy = ty - h.y;
+      if (v === 0 || (Math.abs(dx) < 0.02 && Math.abs(dy) < 0.02)) continue;
+      const stepLen = v * dt;
+      const tryMove = (axis: 'x' | 'y', dir: number, amount: number): boolean => {
+        if (axis === 'x') {
+          const nx = h.x + amount;
+          const edge = dir > 0 ? Math.floor(nx + 0.95) : Math.floor(nx + 0.05);
+          const row0 = Math.floor(h.y + 0.05);
+          const row1 = Math.floor(h.y + 0.95);
+          if (!this.hunterCanStand(edge, row0) || !this.hunterCanStand(edge, row1)) return false;
+          h.x = nx;
+          h.facing = dir > 0 ? 1 : -1;
+          return true;
+        }
+        const ny = h.y + amount;
+        const edge = dir > 0 ? Math.floor(ny + 0.95) : Math.floor(ny + 0.05);
+        const col0 = Math.floor(h.x + 0.05);
+        const col1 = Math.floor(h.x + 0.95);
+        if (!this.hunterCanStand(col0, edge) || !this.hunterCanStand(col1, edge)) return false;
+        h.y = ny;
+        return true;
+      };
+      // 遠いほうの軸へ先に進み、ふさがれていればもう片方の軸へ
+      const primary: 'x' | 'y' = !topdown || Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+      const secondary: 'x' | 'y' = primary === 'x' ? 'y' : 'x';
+      const dp = primary === 'x' ? dx : dy;
+      const ds = secondary === 'x' ? dx : dy;
+      let moved = false;
+      if (Math.abs(dp) >= 0.02) moved = tryMove(primary, Math.sign(dp), Math.min(Math.abs(dp), stepLen) * Math.sign(dp));
+      if (!moved && topdown && Math.abs(ds) >= 0.02) tryMove(secondary, Math.sign(ds), Math.min(Math.abs(ds), stepLen) * Math.sign(ds));
+    }
+    if (anyChasing && !this.hunterAlarm) this.events.push({ type: 'alarm' });
+    this.hunterAlarm = anyChasing;
+  }
+
+  private checkHunters(): void {
+    const p = this.player;
+    if (p.invincible > 0) return;
+    for (const h of this.hunters) {
+      const overlap = p.x + 0.1 < h.x + 0.9 && p.x + p.w - 0.1 > h.x + 0.1 && p.y + 0.1 < h.y + 0.9 && p.y + p.h - 0.1 > h.y + 0.1;
+      if (!overlap) continue;
+      this.lives--;
+      this.events.push({ type: 'caught' });
+      if (this.lives <= 0) {
+        this.end('lose');
+        return;
+      }
+      this.burst(p.x + p.w / 2, p.y + p.h / 2, '💫');
+      this.respawn(2.0);
+      for (const q of this.hunters) {
+        q.x = q.spawnX;
+        q.y = q.spawnY;
+        q.chasing = false;
+      }
+      this.hunterAlarm = false;
+      return;
+    }
   }
 
   private moveX(amount: number): void {
@@ -300,9 +499,21 @@ export class GameRuntime {
     for (let ty = y0; ty <= y1; ty++) {
       for (let tx = x0; tx <= x1; tx++) {
         const t = this.tileAt(tx, ty);
-        if (t === 'empty' || t === 'ground' || t === 'wall' || t === 'cloud' || t === 'flower') continue;
+        if (t === 'empty' || t === 'ground' || t === 'wall' || t === 'cloud' || t === 'flower' || t === 'rail' || t === 'crumble') continue;
         if (!this.overlapsTile(tx, ty)) continue;
         switch (t) {
+          case 'checkpoint': {
+            const idx = ty * this.width + tx;
+            if (this.checkpointIdx !== idx) {
+              this.checkpointIdx = idx;
+              this.startX = tx;
+              this.startY = ty;
+              this.score += 1;
+              this.burst(tx + 0.5, ty + 0.5, '🏁');
+              this.events.push({ type: 'checkpoint' });
+            }
+            break;
+          }
           case 'coin':
             this.setTile(tx, ty, 'empty');
             this.coins++;
@@ -418,11 +629,17 @@ export class GameRuntime {
     }
     const p = this.player;
     if (!fell) this.burst(p.x + p.w / 2, p.y + p.h / 2, '💫');
+    this.respawn(1.5);
+  }
+
+  /** 復活地点（チェックポイント／スタート）に戻す */
+  private respawn(invincible: number): void {
+    const p = this.player;
     p.x = this.startX + (1 - p.w) / 2;
     p.y = this.startY + (1 - p.h);
     p.vx = 0;
     p.vy = 0;
-    p.invincible = 1.5;
+    p.invincible = invincible;
   }
 
   private end(outcome: 'win' | 'lose'): void {

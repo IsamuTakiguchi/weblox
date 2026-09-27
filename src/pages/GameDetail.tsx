@@ -128,7 +128,10 @@ export function GameDetail({ game, shared, onPlay }: { game: GameData; shared?: 
                     ? '🪙 コインをぜんぶ集めるとクリア'
                     : game.rules.win === 'both'
                       ? '🪙 コインをぜんぶ集めてから 🚩 ゴールへ'
-                      : '🚩 ゴールに着くとクリア'}
+                      : game.rules.win === 'survive'
+                        ? '⏱ 時間が終わるまで 生きのこるとクリア'
+                        : '🚩 ゴールに着くとクリア'}
+              {(game.rules.flood ?? 0) > 0 ? ' · 🌊 みずが上がってくる' : ''}
               {game.rules.timeLimit > 0 ? ` · ⏱ ${game.rules.timeLimit}秒` : ''}
               {mini ? '' : ` · ❤️ ライフ ${game.rules.lives}`}
             </p>

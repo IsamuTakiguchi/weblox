@@ -41,7 +41,19 @@ export const TILES: readonly TileDef[] = [
   { id: 'step3', char: '3', label: 'だん3', hint: '高さ 3 の床（3D）', emoji: '3️⃣', kid: false, solid: true, deadly: false, pickup: false },
   { id: 'step4', char: '4', label: 'だん4', hint: '高さ 4 の床（3D）', emoji: '4️⃣', kid: false, solid: true, deadly: false, pickup: false },
   { id: 'step5', char: '5', label: 'だん5', hint: '高さ 5 の床（3D）', emoji: '5️⃣', kid: false, solid: true, deadly: false, pickup: false },
+  { id: 'hunter', char: 'H', label: 'おに', hint: 'こちらを見つけると おいかけてくる。つかまるとスタート（チェックポイント）に戻される', emoji: '👹', kid: true, solid: false, deadly: true, pickup: false },
+  { id: 'rail', char: '=', label: 'レール', hint: 'のりもの。乗ると自動で終点まで運ばれる（3D では丘をのぼりおりするコースター）', emoji: '🎢', kid: false, solid: true, deadly: false, pickup: false },
+  { id: 'crumble', char: 'c', label: 'きえるゆか', hint: '乗るとくずれて落ちる床（3D）。しばらくすると戻る', emoji: '🍪', kid: false, solid: true, deadly: false, pickup: false },
+  { id: 'checkpoint', char: 'C', label: 'チェックポイント', hint: '触れると、ミスしたときここから再開できる', emoji: '🏁', kid: false, solid: false, deadly: false, pickup: false },
 ];
+
+/** おに（hunter）の絵文字。ゲームに enemyEmoji があればそれを使う */
+export const HUNTER_EMOJI = '👹';
+
+/** ゲームごとの おに の絵文字 */
+export function hunterEmoji(game: { enemyEmoji?: string }): string {
+  return game.enemyEmoji ?? HUNTER_EMOJI;
+}
 
 /** 3D での床の高さ（step タイル）。該当しなければ null */
 export function stepHeight(id: TileId): number | null {
@@ -76,7 +88,7 @@ export function charFromTile(id: TileId): string {
   return tileDef(id).char;
 }
 
-export const KID_PALETTE: readonly TileId[] = ['ground', 'wall', 'coin', 'enemy', 'flower', 'goal', 'start', 'empty'];
+export const KID_PALETTE: readonly TileId[] = ['ground', 'wall', 'coin', 'enemy', 'hunter', 'flower', 'goal', 'start', 'empty'];
 
 export const PRO_PALETTE: readonly TileId[] = [
   'ground',
@@ -86,12 +98,16 @@ export const PRO_PALETTE: readonly TileId[] = [
   'gem',
   'heart',
   'enemy',
+  'hunter',
   'spike',
   'water',
   'spring',
   'key',
   'door',
   'portal',
+  'checkpoint',
+  'rail',
+  'crumble',
   'flower',
   'goal',
   'start',

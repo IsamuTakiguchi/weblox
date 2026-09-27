@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createGame, defaultRules } from '../engine/level';
 import type { GameData } from '../engine/types';
-import { CLOUD_TOP, Sim3D } from './sim';
+import { CLOUD_TOP, CRUMBLE_DELAY, CRUMBLE_RESTORE, railChains, railHeight, Sim3D } from './sim';
 
 const still = { x: 0, z: 0 };
 const right = { x: 1, z: 0 };
@@ -127,5 +127,166 @@ describe('Sim3D', () => {
     const sim = new Sim3D(world(['P###G'], { timeLimit: 1 }));
     run(sim, still, 2);
     expect(sim.finished?.outcome).toBe('lose');
+  });
+
+  it('survive rule wins when the time runs out', () => {
+    const sim = new Sim3D(world(['P###'], { timeLimit: 1, win: 'survive' }));
+    run(sim, still, 2);
+    expect(sim.finished?.outcome).toBe('win');
+  });
+});
+
+describe('Sim3D hunters (おに)', () => {
+  it('a hunter chases the player and catches them, sending them back to the start', () => {
+    const sim = new Sim3D(world(['P#####H'], { lives: 3, enemySpeed: 3 }));
+    expect(sim.hunters).toHaveLength(1);
+    expect(sim.tileAt(6, 0)).toBe('ground');
+    // 右へ少し歩いてから止まる
+    run(sim, right, 0.4);
+    const before = sim.player.x;
+    expect(before).toBeGreaterThan(1.5);
+    let caughtAt = -1;
+    for (let i = 0; i < 600 && caughtAt < 0; i++) {
+      sim.step(1 / 60, still, false);
+      if (sim.drainEvents().some((e) => e.type === 'caught')) caughtAt = i;
+    }
+    expect(caughtAt).toBeGreaterThan(0);
+    expect(sim.lives).toBe(2);
+    // スタートに戻され、おにも持ち場に戻る
+    expect(sim.player.x).toBeCloseTo(0.5, 1);
+    expect(sim.hunters[0].x).toBeCloseTo(6.5, 1);
+    expect(sim.hunters[0].chasing).toBe(false);
+  });
+
+  it('hunters go around walls but cannot pass through them', () => {
+    const blocked = new Sim3D(world(['P#W#H'], { lives: 1, enemySpeed: 5 }));
+    run(blocked, still, 3);
+    expect(blocked.finished).toBeNull();
+    expect(blocked.hunters[0].x).toBeGreaterThan(3);
+
+    const around = new Sim3D(
+      world(
+        [
+          'P#W#H', //
+          '#####',
+        ],
+        { lives: 1, enemySpeed: 5 },
+      ),
+    );
+    run(around, still, 4);
+    expect(around.finished?.outcome).toBe('lose');
+  });
+
+  it('hunters do not chase when the player is out of sight and return home', () => {
+    const rows = ['P' + '#'.repeat(30) + 'H'];
+    const sim = new Sim3D(world(rows, { lives: 1, enemySpeed: 5 }));
+    run(sim, still, 2);
+    expect(sim.hunters[0].chasing).toBe(false);
+    expect(sim.hunters[0].x).toBeCloseTo(31.5, 1);
+    expect(sim.finished).toBeNull();
+  });
+});
+
+describe('Sim3D rails (のりもの)', () => {
+  it('rail heights start and end at floor level and rise in the middle', () => {
+    const n = 14;
+    expect(railHeight(0, n)).toBe(1);
+    expect(railHeight(n - 1, n)).toBe(1);
+    const hs = Array.from({ length: n }, (_, i) => railHeight(i, n));
+    expect(Math.max(...hs)).toBeGreaterThan(2);
+    // となり同士の差はジャンプで越えられない急さにならない
+    for (let i = 1; i < n; i++) expect(Math.abs(hs[i] - hs[i - 1])).toBeLessThan(1.2);
+  });
+
+  it('follows connected rail tiles as one chain, starting at an end', () => {
+    const chains = railChains({ width: 5, height: 3, tiles: ['.====', '....=', '..==='].join('') });
+    expect(chains).toHaveLength(1);
+    expect(chains[0].cells).toHaveLength(8);
+    expect(chains[0].cells[0]).toEqual({ x: 1, z: 0 });
+    expect(chains[0].cells[7]).toEqual({ x: 2, z: 2 });
+  });
+
+  it('boards the ride, is carried to the end over the gap and can walk on to the goal', () => {
+    const sim = new Sim3D(world(['P=====...==#G'], { lives: 1 }));
+    // レールは 1 本につながっていないので 2 本になる（間の奈落は乗り物で越えられない）
+    expect(sim.rails).toHaveLength(2);
+    let rode = false;
+    let maxX = 0;
+    for (let i = 0; i < 60 * 8 && !sim.finished; i++) {
+      sim.step(1 / 60, right, false);
+      if (sim.ride) rode = true;
+      maxX = Math.max(maxX, sim.player.x);
+    }
+    expect(rode).toBe(true);
+    // 1 本目のレールの終点（x=5）までは運ばれる。その先は奈落なのでミス
+    expect(maxX).toBeGreaterThan(5);
+    expect(sim.finished?.outcome).toBe('lose');
+  });
+
+  it('carries the player across water on a long rail and drops them at the end', () => {
+    const row = 'P' + '='.repeat(12) + '#G';
+    const sim = new Sim3D(world([row, 'w'.repeat(row.length)], { lives: 1 }));
+    let peak = 0;
+    for (let i = 0; i < 60 * 12 && !sim.finished; i++) {
+      sim.step(1 / 60, right, false);
+      peak = Math.max(peak, sim.player.y);
+    }
+    expect(peak).toBeGreaterThan(2); // 丘をのぼる
+    expect(sim.finished?.outcome).toBe('win');
+  });
+});
+
+describe('Sim3D crumble floors and checkpoints', () => {
+  it('a crumble tile collapses after standing on it and comes back later', () => {
+    const sim = new Sim3D(world(['Pc..'], { lives: 2 }));
+    run(sim, right, 0.22);
+    expect(Math.floor(sim.player.x)).toBe(1);
+    expect(sim.tileAt(1, 0)).toBe('crumble');
+    run(sim, still, CRUMBLE_DELAY + 0.1);
+    expect(sim.tileAt(1, 0)).toBe('empty');
+    // 落ちてミス → スタートへ
+    run(sim, still, 1.5);
+    expect(sim.lives).toBe(1);
+    expect(sim.player.x).toBeCloseTo(0.5, 1);
+    run(sim, still, CRUMBLE_RESTORE);
+    expect(sim.tileAt(1, 0)).toBe('crumble');
+  });
+
+  it('a checkpoint becomes the respawn point', () => {
+    const sim = new Sim3D(world(['PC#..#'], { lives: 3 }));
+    let touched = false;
+    for (let i = 0; i < 600 && sim.lives === 3; i++) {
+      sim.step(1 / 60, right, false);
+      if (sim.drainEvents().some((e) => e.type === 'checkpoint')) touched = true;
+    }
+    expect(touched).toBe(true);
+    expect(sim.lives).toBe(2);
+    expect(sim.player.x).toBeCloseTo(1.5, 1);
+  });
+});
+
+describe('Sim3D flood (上がってくるみず)', () => {
+  it('drowns a player who stays low', () => {
+    const sim = new Sim3D(world(['P##'], { lives: 1, flood: 10 }));
+    expect(sim.floodLevel).toBe(0);
+    run(sim, still, 6);
+    expect(sim.finished?.outcome).toBe('lose');
+  });
+
+  it('is safe on a high step and wins with the survive rule', () => {
+    const sim = new Sim3D(world(['P5'], { lives: 1, flood: 4, timeLimit: 5, win: 'survive' }));
+    // だん5 の上に置く（ジャンプでは届かないのでテストでは直接）
+    sim.player.x = 1.5;
+    sim.player.y = 5;
+    run(sim, still, 6);
+    expect(sim.finished?.outcome).toBe('win');
+  });
+
+  it('respawns on the nearest safe tile when the start is under water', () => {
+    const sim = new Sim3D(world(['P###5'], { lives: 3, flood: 4 }));
+    run(sim, still, 2.5);
+    expect(sim.lives).toBe(2);
+    expect(sim.player.x).toBeCloseTo(4.5, 1);
+    expect(sim.player.y).toBe(5);
   });
 });

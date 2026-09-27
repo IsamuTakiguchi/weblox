@@ -5,11 +5,11 @@
 import * as THREE from 'three';
 import type { RuntimeEvent } from '../engine/runtime';
 import { liquidColors, themeDef } from '../engine/themes';
-import { stepHeight, tileDef, tileFromChar } from '../engine/tiles';
+import { hunterEmoji, stepHeight, tileDef, tileFromChar } from '../engine/tiles';
 import type { GameData, TileId } from '../engine/types';
 import type { AvatarConfig } from '../store/store';
 import { buildAvatar, type AvatarRig } from './avatar3d';
-import { CLOUD_BOTTOM, CLOUD_TOP, PLAYER_HEIGHT, type Sim3D, WALL_HEIGHT, WATER_TOP } from './sim';
+import { CLOUD_BOTTOM, CLOUD_TOP, PLAYER_HEIGHT, railChains, type Sim3D, WALL_HEIGHT, WATER_TOP } from './sim';
 
 export interface CameraState {
   yaw: number;
@@ -58,11 +58,15 @@ export class Renderer3D {
   private game: GameData;
   private items = new Map<number, THREE.Object3D>();
   private doors = new Map<number, THREE.Mesh>();
+  private crumbles = new Map<number, THREE.Mesh>();
   private enemySprites: THREE.Sprite[] = [];
+  private hunterSprites: { body: THREE.Sprite; alert: THREE.Sprite }[] = [];
   private avatar: AvatarRig;
   private particles: Particle[] = [];
   private decor: THREE.Sprite[] = [];
   private sun: THREE.DirectionalLight;
+  private flood: THREE.Mesh | null = null;
+  private car: THREE.Group;
 
   constructor(canvas: HTMLCanvasElement, game: GameData, avatarConfig: AvatarConfig) {
     this.game = game;
@@ -112,6 +116,97 @@ export class Renderer3D {
     // 主人公＝自分のアバター（シャツの胸にはゲームの主人公絵文字をプリント）
     this.avatar = buildAvatar(avatarConfig, game.hero);
     this.scene.add(this.avatar.group);
+
+    // のりもの（コースターの車）。乗っているときだけ表示
+    this.car = this.buildCar();
+    this.car.visible = false;
+    this.scene.add(this.car);
+
+    // 上がってくるみず（ようがん）
+    if ((game.rules.flood ?? 0) > 0) {
+      const lc = liquidColors(game.theme);
+      const mat = new THREE.MeshLambertMaterial({ color: lc.main, transparent: true, opacity: 0.78, emissive: th.liquid ? lc.main : '#000000', emissiveIntensity: th.liquid ? 0.4 : 0, side: THREE.DoubleSide });
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(game.width + 60, game.height + 60), mat);
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.set(game.width / 2, 0.01, game.height / 2);
+      plane.visible = false;
+      this.scene.add(plane);
+      this.flood = plane;
+    }
+  }
+
+  private buildCar(): THREE.Group {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.45, 1.3), new THREE.MeshLambertMaterial({ color: '#e53935' }));
+    body.position.y = 0.3;
+    body.castShadow = true;
+    g.add(body);
+    const front = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.25, 0.3), new THREE.MeshLambertMaterial({ color: '#ffca28' }));
+    front.position.set(0, 0.62, 0.55);
+    g.add(front);
+    const wheelMat = new THREE.MeshLambertMaterial({ color: '#212121' });
+    for (const [x, z] of [
+      [-0.45, 0.4],
+      [0.45, 0.4],
+      [-0.45, -0.4],
+      [0.45, -0.4],
+    ]) {
+      const w = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.1, 12), wheelMat);
+      w.rotation.z = Math.PI / 2;
+      w.position.set(x, 0.16, z);
+      g.add(w);
+    }
+    return g;
+  }
+
+  /** レール（線路）と支柱を置く */
+  private buildRails(): void {
+    const g = this.game;
+    const chains = railChains(g);
+    if (chains.length === 0) return;
+    const railMat = new THREE.MeshLambertMaterial({ color: '#eceff1' });
+    const tieMat = new THREE.MeshLambertMaterial({ color: '#8d6e63' });
+    const postMat = new THREE.MeshLambertMaterial({ color: '#546e7a' });
+    for (const ch of chains) {
+      const n = ch.cells.length;
+      for (let i = 0; i < n; i++) {
+        const c = ch.cells[i];
+        const h = ch.heights[i];
+        // 支柱（床より高いところだけ）
+        if (h > 1.05) {
+          const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, h - 1, 0.14), postMat);
+          post.position.set(c.x + 0.5, 1 + (h - 1) / 2, c.z + 0.5);
+          this.scene.add(post);
+        }
+        if (i + 1 >= n) continue;
+        const d = ch.cells[i + 1];
+        const h2 = ch.heights[i + 1];
+        const from = new THREE.Vector3(c.x + 0.5, h, c.z + 0.5);
+        const to = new THREE.Vector3(d.x + 0.5, h2, d.z + 0.5);
+        const len = from.distanceTo(to);
+        const mid = from.clone().add(to).multiplyScalar(0.5);
+        const seg = new THREE.Group();
+        seg.position.copy(mid);
+        seg.lookAt(to);
+        // まくら木
+        const tie = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, len), tieMat);
+        tie.position.y = 0.04;
+        seg.add(tie);
+        for (const x of [-0.3, 0.3]) {
+          const r = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, len + 0.02), railMat);
+          r.position.set(x, 0.12, 0);
+          seg.add(r);
+        }
+        this.scene.add(seg);
+      }
+      // 乗り場の看板（両端）
+      for (const i of [0, n - 1]) {
+        const c = ch.cells[i];
+        const sp = makeSprite('🎢', 0.9);
+        sp.position.set(c.x + 0.5, 1.9, c.z + 0.5);
+        this.scene.add(sp);
+      }
+    }
   }
 
   private buildWorld(): void {
@@ -130,9 +225,12 @@ export class Renderer3D {
     const springMat = new THREE.MeshLambertMaterial({ color: '#ffb300' });
 
     const box = new THREE.BoxGeometry(1, 1, 1);
+    const crumbleMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(th.ground).lerp(new THREE.Color('#ffffff'), 0.25) });
+    const crumbleTopMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(th.floor).multiplyScalar(0.8) });
+    const railTopMat = new THREE.MeshLambertMaterial({ color: '#6d4c41' });
     const groundCount = g.tiles.split('').filter((c) => {
       const t = tileFromChar(c);
-      return t !== 'empty' && t !== 'wall' && t !== 'door' && t !== 'cloud' && t !== 'water';
+      return t !== 'empty' && t !== 'wall' && t !== 'door' && t !== 'cloud' && t !== 'water' && t !== 'crumble';
     }).length;
     const wallCount = g.tiles.split('').filter((c) => tileFromChar(c) === 'wall').length;
     const stepCount = g.tiles.split('').filter((c) => stepHeight(tileFromChar(c)) !== null).length;
@@ -206,6 +304,23 @@ export class Renderer3D {
           this.scene.add(w);
           continue;
         }
+        if (t === 'crumble') {
+          // きえる ゆか：1 つずつ別メッシュ（くずれて消えるので）
+          const c = new THREE.Mesh(box, [crumbleMat, crumbleMat, crumbleTopMat, crumbleMat, crumbleMat, crumbleMat]);
+          c.position.set(cx, 0.5, cz);
+          c.castShadow = true;
+          c.receiveShadow = true;
+          this.scene.add(c);
+          this.crumbles.set(idx, c);
+          continue;
+        }
+        if (t === 'rail') {
+          const r = new THREE.Mesh(box, [groundMat, groundMat, railTopMat, groundMat, groundMat, groundMat]);
+          r.position.set(cx, 0.5, cz);
+          r.receiveShadow = true;
+          this.scene.add(r);
+          continue;
+        }
         // 床
         mat4.makeScale(1, 1, 1).setPosition(cx, 0.5, cz);
         if ((tx + tz) % 2 === 0) groundA.setMatrixAt(ia++, mat4);
@@ -223,15 +338,16 @@ export class Renderer3D {
           s.position.set(cx, 1.075, cz);
           this.scene.add(s);
           this.items.set(idx, s);
-        } else if (t !== 'ground' && t !== 'start' && t !== 'enemy') {
+        } else if (t !== 'ground' && t !== 'start' && t !== 'enemy' && t !== 'hunter') {
           const def = tileDef(t);
-          const sp = makeSprite(def.emoji, t === 'goal' ? 1.2 : 0.8);
+          const sp = makeSprite(def.emoji, t === 'goal' ? 1.2 : t === 'checkpoint' ? 1.0 : 0.8);
           sp.position.set(cx, 1.55, cz);
           this.scene.add(sp);
           this.items.set(idx, sp);
         }
       }
     }
+    this.buildRails();
     groundA.count = ia;
     groundB.count = ib;
     walls.count = iw;
@@ -260,6 +376,21 @@ export class Renderer3D {
       const s = makeSprite(this.game.enemyEmoji ?? tileDef('enemy').emoji, 0.95);
       this.scene.add(s);
       this.enemySprites.push(s);
+    }
+  }
+
+  attachHunters(count: number): void {
+    for (const h of this.hunterSprites) {
+      this.scene.remove(h.body);
+      this.scene.remove(h.alert);
+    }
+    this.hunterSprites = [];
+    for (let i = 0; i < count; i++) {
+      const body = makeSprite(hunterEmoji(this.game), 1.3);
+      const alert = makeSprite('❗', 0.6);
+      alert.visible = false;
+      this.scene.add(body, alert);
+      this.hunterSprites.push({ body, alert });
     }
   }
 
@@ -301,6 +432,16 @@ export class Renderer3D {
         case 'hurt':
           emit('💫', 5);
           break;
+        case 'caught':
+          emit('💢', 6);
+          break;
+        case 'checkpoint':
+          emit('🏁', 3);
+          emit('✨', 4);
+          break;
+        case 'ride':
+          emit('🎢', 3);
+          break;
         case 'win':
           emit('🎉', 14);
           emit('⭐', 8);
@@ -329,6 +470,24 @@ export class Renderer3D {
     }
     for (const [idx, door] of this.doors) door.visible = tileFromChar(sim.tiles[idx] ?? '.') === 'door';
 
+    // きえる ゆか：くずれる前はゆれ、消えている間は非表示
+    for (const [idx, mesh] of this.crumbles) {
+      const alive = tileFromChar(sim.tiles[idx] ?? '.') === 'crumble';
+      mesh.visible = alive;
+      if (!alive) continue;
+      const shake = sim.crumbleShake(idx);
+      const cx = (idx % g.width) + 0.5;
+      const cz = Math.floor(idx / g.width) + 0.5;
+      mesh.position.set(cx + Math.sin(t * 40) * 0.05 * shake, 0.5 - shake * 0.15, cz + Math.cos(t * 37) * 0.05 * shake);
+    }
+
+    // 上がってくるみず
+    if (this.flood) {
+      const level = sim.floodLevel;
+      this.flood.visible = level > 0.02;
+      this.flood.position.y = level + Math.sin(t * 2) * 0.03;
+    }
+
     // 敵
     if (this.enemySprites.length !== sim.enemies.length) this.attachEnemies(sim.enemies.length);
     sim.enemies.forEach((e, i) => {
@@ -336,13 +495,37 @@ export class Renderer3D {
       s.visible = e.alive;
       s.position.set(e.x, e.y + 0.55 + Math.sin(e.phase * 6) * 0.05, e.z);
     });
+    // おに
+    if (this.hunterSprites.length !== sim.hunters.length) this.attachHunters(sim.hunters.length);
+    sim.hunters.forEach((h, i) => {
+      const s = this.hunterSprites[i];
+      const bob = h.chasing ? Math.abs(Math.sin(h.phase * 10)) * 0.18 : Math.sin(h.phase * 4) * 0.04;
+      s.body.position.set(h.x, h.y + 0.7 + bob, h.z);
+      s.alert.visible = h.chasing;
+      s.alert.position.set(h.x, h.y + 1.6 + bob, h.z);
+    });
+
+    // のりもの
+    const riding = sim.ride !== null;
+    this.car.visible = riding;
+    if (riding) {
+      this.car.position.set(p.x, p.y - 0.05, p.z);
+      this.car.rotation.y = p.yaw;
+    }
 
     // アバター
     const av = this.avatar;
-    av.group.position.set(p.x, p.y, p.z);
+    av.group.position.set(p.x, riding ? p.y + 0.2 : p.y, p.z);
     av.group.rotation.y = p.yaw;
-    av.pose(p.walkPhase, Math.hypot(p.vx, p.vz) > 0.1, p.onGround);
+    // 乗りもの中は両手を上げる（コースターのポーズ）
+    av.pose(p.walkPhase, !riding && Math.hypot(p.vx, p.vz) > 0.1, riding ? false : p.onGround);
     av.group.visible = !(p.invincible > 0 && Math.floor(t * 12) % 2 === 0);
+
+    // チェックポイント：有効なものは金色っぽく大きく
+    if (sim.checkpointIdx >= 0) {
+      const cp = this.items.get(sim.checkpointIdx);
+      if (cp) cp.scale.set(1.3, 1.3, 1);
+    }
 
     // パーティクル
     for (const q of this.particles) {
@@ -361,14 +544,39 @@ export class Renderer3D {
 
     // カメラ（三人称・追従）
     const target = new THREE.Vector3(p.x, Math.max(p.y, -2) + PLAYER_HEIGHT * 0.7, p.z);
-    const cp = Math.cos(cam.pitch);
-    const desired = new THREE.Vector3(
-      target.x + Math.sin(cam.yaw) * cp * cam.distance,
-      target.y + Math.sin(cam.pitch) * cam.distance,
-      target.z + Math.cos(cam.yaw) * cp * cam.distance,
-    );
-    this.camera.position.lerp(desired, 1 - Math.pow(0.001, dt));
-    this.camera.lookAt(target);
+    // かべの中にカメラが入らないように、プレイヤーとカメラの間にかべがあれば手前に寄せる（Roblox と同じ）。
+    // 寄せすぎになるときは、上から見おろす角度をためし、それでもだめなら一人称になる
+    const candidate = (pitch: number): { dir: THREE.Vector3; allowed: number } => {
+      const c = Math.cos(pitch);
+      const dir = new THREE.Vector3(Math.sin(cam.yaw) * c, Math.sin(pitch), Math.cos(cam.yaw) * c);
+      let allowed = cam.distance;
+      for (let s = 0.7; s < cam.distance; s += 0.2) {
+        const col = sim.column(Math.floor(target.x + dir.x * s), Math.floor(target.z + dir.z * s));
+        if (col.top === null || col.cloud) continue;
+        if ((col.solid || col.top > 1.5) && target.y + dir.y * s < col.top + 0.15) {
+          allowed = Math.max(0.6, s - 0.4);
+          break;
+        }
+      }
+      return { dir, allowed };
+    };
+    let best = candidate(cam.pitch);
+    if (best.allowed < 2.5) {
+      const steep = candidate(Math.max(cam.pitch, 1.15));
+      if (steep.allowed > best.allowed + 0.5) best = steep;
+    }
+    const firstPerson = best.allowed < 1.5;
+    const desired = firstPerson ? target.clone().addScaledVector(best.dir, 0.15) : target.clone().addScaledVector(best.dir, best.allowed);
+    // 近づくときはすばやく、はなれるときはゆっくり
+    const closer = this.camera.position.distanceTo(target) > best.allowed;
+    this.camera.position.lerp(desired, 1 - Math.pow(closer ? 0.000001 : 0.001, dt));
+    if (firstPerson) {
+      // 一人称：カメラの向きのまま前を見る
+      this.camera.lookAt(target.clone().addScaledVector(best.dir, -5));
+      av.group.visible = false;
+    } else {
+      this.camera.lookAt(target);
+    }
 
     // 影の中心をプレイヤーに
     this.sun.target.position.set(p.x, 0, p.z);

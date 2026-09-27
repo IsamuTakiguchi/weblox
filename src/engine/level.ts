@@ -21,8 +21,17 @@ export function newId(prefix = 'g'): string {
 }
 
 export function defaultRules(mode: GameRules['mode'] = 'topdown'): GameRules {
-  return { mode, speed: 3, jump: 3, lives: 3, timeLimit: 0, win: 'goal', enemySpeed: 2 };
+  return { mode, speed: 3, jump: 3, lives: 3, timeLimit: 0, win: 'goal', enemySpeed: 2, flood: 0 };
 }
+
+/** みず（ようがん）が上がってくる設定の選択肢（秒）。0 = なし */
+export const FLOOD_OPTIONS: readonly { label: string; seconds: number }[] = [
+  { label: 'なし', seconds: 0 },
+  { label: 'はやい（30 秒）', seconds: 30 },
+  { label: 'ふつう（45 秒）', seconds: 45 },
+  { label: 'ゆっくり（60 秒）', seconds: 60 },
+  { label: 'とてもゆっくり（90 秒）', seconds: 90 },
+];
 
 export function emptyTiles(width: number, height: number): string {
   return '.'.repeat(width * height);
@@ -121,6 +130,21 @@ export function validateGame(game: GameData): ValidationIssue[] {
   if ((game.rules.win === 'coins' || game.rules.win === 'both') && coins === 0) {
     issues.push({ level: 'error', message: 'コインを集めるルールなのにコインがありません', kidMessage: 'コインをおいてね 🪙' });
   }
+  if (game.rules.win === 'survive' && game.rules.timeLimit <= 0) {
+    issues.push({ level: 'error', message: '「生きのこる」ルールには制限時間が必要です', kidMessage: 'じかんを きめてね ⏱' });
+  }
+  if (game.rules.win === 'survive' && countTile(game, 'hunter') === 0 && countTile(game, 'enemy') === 0 && (game.rules.flood ?? 0) === 0) {
+    issues.push({ level: 'warn', message: '「生きのこる」ルールなのに、おに・てき・上がってくるみずがありません', kidMessage: 'おにを おいてね 👹' });
+  }
+  if ((game.rules.flood ?? 0) > 0 && game.rules.mode !== '3d') {
+    issues.push({ level: 'warn', message: '上がってくるみずは 3D モードだけで動きます', kidMessage: '3D にしてね' });
+  }
+  if ((game.rules.flood ?? 0) > 0 && game.rules.mode === '3d' && countTile(game, 'step5') === 0 && countTile(game, 'step4') === 0) {
+    issues.push({ level: 'warn', message: 'みずが上がってくるのに、高い足場（だん4・だん5）がありません', kidMessage: 'たかい だんを おいてね' });
+  }
+  if (game.rules.mode === '3d' && countTile(game, 'rail') === 1) {
+    issues.push({ level: 'warn', message: 'レールは 2 マス以上つなげてください', kidMessage: 'レールを つなげてね 🎢' });
+  }
   if (game.tiles.length !== game.width * game.height) {
     issues.push({ level: 'error', message: 'マップのサイズが正しくありません', kidMessage: 'マップがこわれているよ' });
   }
@@ -186,7 +210,10 @@ export function autoFix(game: GameData): GameData {
 
   const goals = countTile({ tiles }, 'goal');
   const coins = countTile({ tiles }, 'coin');
-  if (goals === 0) {
+  if (rules.win === 'survive') {
+    // 生きのこるルールにはゴールは不要。制限時間がなければ 60 秒にする
+    if (rules.timeLimit <= 0) rules = { ...rules, timeLimit: 60 };
+  } else if (goals === 0) {
     if (coins > 0) rules.win = 'coins';
     else {
       const p = firstEmpty(true);

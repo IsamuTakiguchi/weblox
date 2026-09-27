@@ -49,6 +49,26 @@ describe('share codec', () => {
     expect(back.rules.lives).toBe(1);
   });
 
+  it('keeps the survive rule, flood setting and new tiles', () => {
+    const g = createGame({
+      width: 6,
+      height: 1,
+      tiles: 'PH=cC5',
+      rules: { ...defaultRules('3d'), win: 'survive', timeLimit: 45, flood: 30 },
+    });
+    const back = decodeGame(encodeGame(g))!;
+    expect(back.tiles).toBe('PH=cC5');
+    expect(back.rules.win).toBe('survive');
+    expect(back.rules.flood).toBe(30);
+    expect(back.rules.mode).toBe('3d');
+  });
+
+  it('treats a link without the flood field as no flood', () => {
+    const code = encodeGame(game);
+    const back = decodeGame(code)!;
+    expect(back.rules.flood).toBe(0);
+  });
+
   it('builds a hash-routed share url', () => {
     const url = shareUrl(game, 'https://example.com/weblox/');
     expect(url.startsWith('https://example.com/weblox/#/play/s/')).toBe(true);

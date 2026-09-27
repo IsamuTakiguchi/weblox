@@ -16,7 +16,8 @@ interface Packed {
   w: number;
   hh: number;
   m: string;
-  r: [GameMode, number, number, number, number, WinCondition, number];
+  /** [mode, speed, jump, lives, timeLimit, win, enemySpeed, flood?] */
+  r: [GameMode, number, number, number, number, WinCondition, number, number?];
   k: 0 | 1;
   c: number;
   /** てきの絵文字（省略可） */
@@ -37,7 +38,7 @@ function pack(g: GameData): Packed {
     w: g.width,
     hh: g.height,
     m: g.tiles,
-    r: [r.mode, r.speed, r.jump, r.lives, r.timeLimit, r.win, r.enemySpeed],
+    r: [r.mode, r.speed, r.jump, r.lives, r.timeLimit, r.win, r.enemySpeed, r.flood ?? 0],
     k: g.kidMode ? 1 : 0,
     c: g.createdAt,
     ...(g.enemyEmoji ? { ee: g.enemyEmoji } : {}),
@@ -60,7 +61,7 @@ function unpack(p: unknown): GameData | null {
   const rr = Array.isArray(o.r) ? o.r : [];
   const base = defaultRules();
   const mode: GameMode = rr[0] === 'platformer' || rr[0] === '3d' || rr[0] === 'garden' || rr[0] === 'fishing' ? rr[0] : 'topdown';
-  const win: WinCondition = rr[5] === 'coins' || rr[5] === 'both' ? rr[5] : 'goal';
+  const win: WinCondition = rr[5] === 'coins' || rr[5] === 'both' || rr[5] === 'survive' ? rr[5] : 'goal';
   const rules: GameRules = {
     mode,
     speed: clampInt(rr[1], 1, 5, base.speed),
@@ -69,6 +70,7 @@ function unpack(p: unknown): GameData | null {
     timeLimit: clampInt(rr[4], 0, 3600, base.timeLimit),
     win,
     enemySpeed: clampInt(rr[6], 0, 5, base.enemySpeed),
+    flood: clampInt(rr[7], 0, 600, 0),
   };
   const str = (v: unknown, max: number, fb = ''): string => (typeof v === 'string' ? v.slice(0, max) : fb);
   return createGame({

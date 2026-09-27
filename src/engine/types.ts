@@ -21,7 +21,15 @@ export type TileId =
   | 'step2'
   | 'step3'
   | 'step4'
-  | 'step5';
+  | 'step5'
+  /** おいかけてくる てき（おに）。ぶつかると つかまってスタートに戻される */
+  | 'hunter'
+  /** のりもの（レール）。乗ると自動で終点まで運ばれる（3D ではコースターの丘になる） */
+  | 'rail'
+  /** きえる ゆか。乗るとくずれて、しばらくして戻る（3D） */
+  | 'crumble'
+  /** チェックポイント。触れるとミスしたときの復活地点になる */
+  | 'checkpoint';
 
 /**
  * 上から見る（あるく）、横から見る（ジャンプ）、立体（3D）、
@@ -34,8 +42,8 @@ export function isTileMode(mode: GameMode): boolean {
   return mode === 'topdown' || mode === 'platformer' || mode === '3d';
 }
 
-/** クリア条件 */
-export type WinCondition = 'goal' | 'coins' | 'both';
+/** クリア条件。survive = 制限時間まで生きのこる（サバイバル・かくれんぼ系） */
+export type WinCondition = 'goal' | 'coins' | 'both' | 'survive';
 
 export type ThemeId = 'meadow' | 'space' | 'ocean' | 'candy' | 'volcano' | 'snow';
 
@@ -52,6 +60,11 @@ export interface GameRules {
   win: WinCondition;
   /** 0〜5。0 なら敵は動かない */
   enemySpeed: number;
+  /**
+   * みず（ようがん）が上がってくるまでの秒数（3D）。0 または省略で なし。
+   * 秒数をかけて水位が FLOOD_MAX まで上がる。高い足場に逃げる「だいさいがい」系のルール
+   */
+  flood?: number;
 }
 
 export interface GameData {

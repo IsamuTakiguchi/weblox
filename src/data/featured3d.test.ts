@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { findTiles, getTile } from '../engine/level';
 import { stepHeight } from '../engine/tiles';
 import type { GameData, TileId } from '../engine/types';
+import { FLOOD_MAX, railChains } from '../engine3d/sim';
 import { FEATURED_GAMES } from './featured';
 
 /**
@@ -12,7 +13,7 @@ import { FEATURED_GAMES } from './featured';
  *  - のぼりながらのジャンプは、とびこえられる空白が 1 つまで
  * という条件で辺を張り、スタートからの到達可能性を見る。
  */
-const STANDABLE: readonly TileId[] = ['ground', 'coin', 'gem', 'heart', 'key', 'goal', 'start', 'flower', 'spring', 'portal', 'cloud', 'enemy', 'step2', 'step3', 'step4', 'step5'];
+const STANDABLE: readonly TileId[] = ['ground', 'coin', 'gem', 'heart', 'key', 'goal', 'start', 'flower', 'spring', 'portal', 'cloud', 'enemy', 'hunter', 'rail', 'crumble', 'checkpoint', 'step2', 'step3', 'step4', 'step5'];
 
 function heightOf(t: TileId): number {
   if (t === 'cloud') return 2.15; // 着地に必要な足の高さ
@@ -84,8 +85,14 @@ function reachable(game: GameData): Set<string> {
 describe('featured 3D levels', () => {
   const levels = FEATURED_GAMES.filter((g) => g.rules.mode === '3d');
 
-  it('there are many 3D samples', () => {
-    expect(levels.length).toBeGreaterThanOrEqual(12);
+  it('there are many 3D samples with a variety of rules', () => {
+    expect(levels.length).toBeGreaterThanOrEqual(20);
+    expect(levels.some((g) => g.rules.win === 'survive')).toBe(true);
+    expect(levels.some((g) => (g.rules.flood ?? 0) > 0)).toBe(true);
+    expect(levels.filter((g) => findTiles(g, 'hunter').length > 0).length).toBeGreaterThanOrEqual(5);
+    expect(levels.filter((g) => findTiles(g, 'rail').length > 0).length).toBeGreaterThanOrEqual(3);
+    expect(levels.some((g) => findTiles(g, 'crumble').length > 0)).toBe(true);
+    expect(levels.some((g) => findTiles(g, 'checkpoint').length > 0)).toBe(true);
   });
 
   it.each(levels.map((g) => [g.title, g] as const))('%s can be cleared', (_t, g) => {
@@ -99,5 +106,22 @@ describe('featured 3D levels', () => {
     }
     // かぎが必要なら、かぎにも届くこと
     for (const k of findTiles(g, 'key')) expect(seen.has(`${k.x},${k.y}`), `key at ${k.x},${k.y} unreachable`).toBe(true);
+    // みずが上がってくるなら、最後まで安全な高さの足場に届くこと
+    if ((g.rules.flood ?? 0) > 0) {
+      const safe = [...seen].some((k) => {
+        const [x, y] = k.split(',').map(Number);
+        return heightOf(getTile(g, x, y)) >= FLOOD_MAX + 0.4;
+      });
+      expect(safe, 'no reachable tile above the final water level').toBe(true);
+    }
+  });
+
+  it.each(levels.filter((g) => findTiles(g, 'rail').length > 0).map((g) => [g.title, g] as const))('%s has rails that form rides of 2+ tiles', (_t, g) => {
+    const chains = railChains(g);
+    expect(chains.length).toBeGreaterThan(0);
+    for (const c of chains) expect(c.cells.length).toBeGreaterThanOrEqual(2);
+    // すべてのレールがどれかの乗り物に含まれる（枝分かれで取り残されていない）
+    const total = chains.reduce((n, c) => n + c.cells.length, 0);
+    expect(total).toBe(findTiles(g, 'rail').length);
   });
 });
