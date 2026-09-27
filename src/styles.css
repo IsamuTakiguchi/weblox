@@ -1046,6 +1046,10 @@ body.immersive-open {
 
 /* ---------- ゲーム詳細ページ ---------- */
 
+.detail-nav {
+  margin-bottom: 12px;
+}
+
 .detail {
   display: grid;
   grid-template-columns: 1fr;

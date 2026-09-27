@@ -58,6 +58,54 @@ export async function toggleFullscreen(): Promise<void> {
   else await enterFullscreen();
 }
 
+/* ---------- ページのピンチズーム対策（iPhone） ---------- */
+
+/**
+ * プレイ中はページ自体がピンチで拡大されないようにする。
+ * iOS Safari は viewport の user-scalable=no を無視するので、ジェスチャーイベントを止める。
+ * 戻り値のクリーンアップで解除する。
+ */
+export function lockPageZoom(): () => void {
+  if (typeof document === 'undefined') return () => {};
+  const stop = (e: Event) => e.preventDefault();
+  const onTouchMove = (e: TouchEvent) => {
+    const scale = (e as TouchEvent & { scale?: number }).scale;
+    if (e.touches.length > 1 || (scale !== undefined && scale !== 1)) e.preventDefault();
+  };
+  document.addEventListener('gesturestart', stop, { passive: false });
+  document.addEventListener('gesturechange', stop, { passive: false });
+  document.addEventListener('gestureend', stop, { passive: false });
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  return () => {
+    document.removeEventListener('gesturestart', stop);
+    document.removeEventListener('gesturechange', stop);
+    document.removeEventListener('gestureend', stop);
+    document.removeEventListener('touchmove', onTouchMove);
+  };
+}
+
+/**
+ * ページが拡大・スクロールされたままになっていたら元に戻す（ゲームをやめたあとにヘッダーが見切れないように）。
+ * viewport meta を設定し直すと iOS Safari は倍率を 1 に戻す。
+ */
+export function resetPageView(): void {
+  if (typeof document === 'undefined') return;
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+  if (meta) {
+    const content = meta.getAttribute('content') ?? '';
+    meta.setAttribute('content', content.replace(/maximum-scale=[^,]*/, 'maximum-scale=1.0').replace(/initial-scale=[^,]*/, 'initial-scale=1.0'));
+    // 値を変えないと再評価されないブラウザ向けに、いったん別の値にしてから戻す
+    requestAnimationFrame(() => meta.setAttribute('content', content));
+  }
+  try {
+    window.scrollTo({ top: 0, left: 0 });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  } catch {
+    /* noop */
+  }
+}
+
 /* ---------- 「▶ あそぶ」を押した直後だけ自動スタートするためのフラグ ---------- */
 
 let pendingAutoStart = false;

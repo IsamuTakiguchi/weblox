@@ -4,7 +4,7 @@ import { AnyGameCanvas } from '../components/AnyGameCanvas';
 import { fireConfetti, toast } from '../components/feedback';
 import { Empty, Modal } from '../components/ui';
 import type { GameData, GameResult } from '../engine/types';
-import { consumeAutoStart, enterFullscreen, exitFullscreen } from '../fullscreen';
+import { consumeAutoStart, enterFullscreen, exitFullscreen, lockPageZoom, resetPageView } from '../fullscreen';
 import { hrefFor, navigate } from '../router';
 import { decodeGame, shareUrl } from '../share/codec';
 import { getDraft, recordPlay, recordWin, useStore } from '../store/store';
@@ -41,6 +41,14 @@ export async function shareGame(game: GameData): Promise<void> {
   }
   const ok = await copyText(url);
   toast(ok ? '🔗 リンクをコピーしました！ともだちに送ろう' : 'リンクをコピーできませんでした');
+}
+
+/** ゲームをやめてホームへ（ヘッダーが見えない状態でも確実に戻れるように、メニューにも置く） */
+function goHome(): void {
+  sfx.tap();
+  void exitFullscreen();
+  resetPageView();
+  navigate({ name: 'home' });
 }
 
 function ResultModal({ result, game, onRetry, onLeave, published }: { result: GameResult; game: GameData; onRetry: () => void; onLeave: () => void; published: boolean }) {
@@ -82,6 +90,9 @@ function ResultModal({ result, game, onRetry, onLeave, published }: { result: Ga
           <button className="btn btn-lg" onClick={onLeave}>
             🚪 やめる
           </button>
+          <button className="btn btn-lg" onClick={goHome}>
+            🏠 ホームへ
+          </button>
         </div>
       </div>
     </Modal>
@@ -109,6 +120,9 @@ function PauseMenu({ onResume, onRestart, onLeave, game }: { onResume: () => voi
             </button>
             <button className="btn btn-lg btn-danger" onClick={onLeave}>
               🚪 ゲームをやめる
+            </button>
+            <button className="btn btn-lg" onClick={goHome}>
+              🏠 ホームへ
             </button>
           </div>
           <div className="pause-help">
@@ -139,6 +153,9 @@ function PauseMenu({ onResume, onRestart, onLeave, game }: { onResume: () => voi
           </button>
           <button className="btn btn-lg btn-danger" onClick={onLeave}>
             🚪 ゲームをやめる
+          </button>
+          <button className="btn btn-lg" onClick={goHome}>
+            🏠 ホームへ
           </button>
         </div>
         <div className="pause-help">
@@ -202,10 +219,16 @@ export function GamePlayer({ game, published, onLeave, autoStart = false }: Play
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.id]);
 
-  // ページの上下（ヘッダーなど）を隠して、画面いっぱいにする
+  // ページの上下（ヘッダーなど）を隠して、画面いっぱいにする。
+  // プレイ中はページのピンチズームを止め、やめたあとは倍率とスクロールを元に戻す
   useEffect(() => {
     document.body.classList.add('immersive-open');
-    return () => document.body.classList.remove('immersive-open');
+    const unlock = lockPageZoom();
+    return () => {
+      document.body.classList.remove('immersive-open');
+      unlock();
+      resetPageView();
+    };
   }, []);
 
   useEffect(() => {
@@ -230,6 +253,7 @@ export function GamePlayer({ game, published, onLeave, autoStart = false }: Play
   const leave = () => {
     sfx.tap();
     void exitFullscreen();
+    resetPageView();
     onLeave();
   };
 

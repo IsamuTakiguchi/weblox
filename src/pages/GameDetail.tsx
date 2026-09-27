@@ -36,6 +36,14 @@ export function GameDetail({ game, shared, onPlay }: { game: GameData; shared?: 
 
   return (
     <main className="page">
+      <div className="play-head detail-nav">
+        <a className="btn btn-sm" href={hrefFor({ name: 'discover' })}>
+          ← ゲームいちらん
+        </a>
+        <a className="btn btn-sm" href={hrefFor({ name: 'home' })}>
+          🏠 ホーム
+        </a>
+      </div>
       <div className="detail">
         <div className="detail-thumb">
           <Thumbnail game={game} />
