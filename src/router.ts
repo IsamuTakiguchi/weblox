@@ -11,7 +11,9 @@ export type Route =
   | { name: 'studio'; id?: string }
   | { name: 'avatar' }
   | { name: 'me' }
-  | { name: 'help' };
+  | { name: 'help' }
+  /** マルチプレイの部屋（ロビー／プレイ中） */
+  | { name: 'room'; code: string; play?: boolean };
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, '').replace(/^\/+/, '').replace(/\/+$/, '');
@@ -52,6 +54,12 @@ export function parseHash(hash: string): Route {
       return { name: 'me' };
     case 'help':
       return { name: 'help' };
+    case 'room':
+    case 'join': {
+      const code = (parts[1] ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+      if (code.length !== 4) return { name: 'home' };
+      return parts[2] === 'play' ? { name: 'room', code, play: true } : { name: 'room', code };
+    }
     default:
       return { name: 'home' };
   }
@@ -81,6 +89,8 @@ export function hrefFor(route: Route): string {
       return '#/me';
     case 'help':
       return '#/help';
+    case 'room':
+      return route.play ? `#/room/${route.code}/play` : `#/room/${route.code}`;
   }
 }
 
@@ -90,7 +100,7 @@ export function navigate(route: Route): void {
 
 /** ゲームを全画面で遊んでいる最中か（ヘッダーなどを隠す） */
 export function isImmersive(route: Route): boolean {
-  return route.name === 'play' || (route.name === 'shared' && Boolean(route.play));
+  return route.name === 'play' || (route.name === 'shared' && Boolean(route.play)) || (route.name === 'room' && Boolean(route.play));
 }
 
 export function useRoute(): Route {

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { playEvents, sfx } from '../audio';
-import { renderRuntime } from '../engine/render';
+import { type RemotePlayer2D, renderRuntime } from '../engine/render';
 import { GameRuntime, type InputState } from '../engine/runtime';
 import type { GameData, GameResult } from '../engine/types';
+import type { RoomSession } from '../net/room';
 import { TouchControls } from './TouchControls';
 import type { HudState } from './hud';
 
@@ -14,6 +15,8 @@ interface Props {
   resetKey?: number;
   autoStart?: boolean;
   paused?: boolean;
+  /** マルチプレイの部屋 */
+  room?: RoomSession;
 }
 
 const emptyInput = (): InputState => ({ left: false, right: false, up: false, down: false, jump: false });
@@ -42,8 +45,10 @@ function keyToInput(code: string): keyof InputState | null {
 }
 
 /** 2D ゲームのプレイ画面（あるく／ジャンプ） */
-export function GameCanvas({ game, onFinish, onHud, resetKey = 0, autoStart = false, paused = false }: Props) {
+export function GameCanvas({ game, onFinish, onHud, resetKey = 0, autoStart = false, paused = false, room }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const roomRef = useRef(room);
+  roomRef.current = room;
   const wrapRef = useRef<HTMLDivElement>(null);
   const rtRef = useRef<GameRuntime | null>(null);
   const keyInput = useRef<InputState>(emptyInput());
@@ -129,7 +134,19 @@ export function GameCanvas({ game, onFinish, onHud, resetKey = 0, autoStart = fa
       merged.jump = a.jump || b.jump;
       if (started && !pausedRef.current && !rt.finished) rt.step(dt, merged);
       else rt.time += dt; // アニメだけ動かす
-      renderRuntime(ctx, rt, canvas.width, canvas.height);
+      // マルチプレイ：自分の位置を送り、ほかの人を描く
+      let others: RemotePlayer2D[] = [];
+      const room = roomRef.current;
+      if (room) {
+        const p = rt.player;
+        room.sendState({ x: p.x, y: p.y, z: 0, yaw: 0, f: p.facing, w: rt.time, g: p.onGround, r: false });
+        const list = room.others(dt);
+        others = list.map((o) => ({ x: o.shown!.x, y: o.shown!.y, face: o.avatar.face, name: o.name, it: o.it }));
+        if (room.amIt && !rt.finished) {
+          for (const o of list) if (Math.abs(o.shown!.x - p.x) < 0.8 && Math.abs(o.shown!.y - p.y) < 0.8) room.tag(o.id);
+        }
+      }
+      renderRuntime(ctx, rt, canvas.width, canvas.height, others);
       const ev = rt.drainEvents();
       if (ev.length) playEvents(ev);
       hudTick += dt;

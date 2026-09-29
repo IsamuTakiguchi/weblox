@@ -10,6 +10,7 @@ import { HomePage } from './pages/Home';
 import { KidEditorPage } from './pages/KidEditor';
 import { MePage } from './pages/Me';
 import { PlayPage, SharedPage } from './pages/Play';
+import { RoomPage } from './pages/Room';
 import { StudioPage } from './pages/Studio';
 import { isImmersive, useRoute } from './router';
 
@@ -55,6 +56,9 @@ export function App() {
       break;
     case 'help':
       page = <HelpPage />;
+      break;
+    case 'room':
+      page = <RoomPage key={route.code} code={route.code} play={route.play} />;
       break;
   }
 

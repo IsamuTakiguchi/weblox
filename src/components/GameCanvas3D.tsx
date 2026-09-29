@@ -3,6 +3,7 @@ import { playEvents, sfx } from '../audio';
 import type { GameData, GameResult } from '../engine/types';
 import { Renderer3D, type CameraState } from '../engine3d/render3d';
 import { Sim3D } from '../engine3d/sim';
+import type { RoomSession } from '../net/room';
 import { getState } from '../store/store';
 import type { HudState } from './hud';
 import { TouchControls } from './TouchControls';
@@ -14,6 +15,8 @@ interface Props {
   resetKey?: number;
   autoStart?: boolean;
   paused?: boolean;
+  /** マルチプレイの部屋 */
+  room?: RoomSession;
 }
 
 interface Keys {
@@ -69,8 +72,10 @@ const MAX_DIST = 18;
  *  PC   : WASD / 矢印で移動、スペースでジャンプ、マウスドラッグでカメラ、ホイールか I / O でズーム
  *  スマホ: 左側をなぞってジョイスティック、右側をなぞってカメラ、ピンチでズーム、右下ボタンでジャンプ
  */
-export function GameCanvas3D({ game, onFinish, onHud, resetKey = 0, autoStart = false, paused = false }: Props) {
+export function GameCanvas3D({ game, onFinish, onHud, resetKey = 0, autoStart = false, paused = false, room }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const roomRef = useRef(room);
+  roomRef.current = room;
   const wrapRef = useRef<HTMLDivElement>(null);
   const simRef = useRef<Sim3D | null>(null);
   const keysRef = useRef<Keys>(emptyKeys());
@@ -170,6 +175,17 @@ export function GameCanvas3D({ game, onFinish, onHud, resetKey = 0, autoStart = 
       if (ev.length) {
         playEvents(ev);
         renderer.handleEvents(ev, s);
+      }
+      // マルチプレイ：自分の位置を送り、ほかの人のアバターを置く
+      const room = roomRef.current;
+      if (room) {
+        const p = s.player;
+        room.sendState({ x: p.x, y: p.y, z: p.z, yaw: p.yaw, f: 1, w: p.walkPhase, g: p.onGround, r: s.ride !== null });
+        const list = room.others(dt);
+        renderer.setRemote(list.map((o) => ({ id: o.id, avatar: o.avatar, name: o.name, it: o.it, x: o.shown!.x, y: o.shown!.y, z: o.shown!.z, yaw: o.shown!.yaw, moving: Date.now() - (o.state?.t ?? 0) < 300 && Math.hypot(o.shown!.x - (o.state?.x ?? 0), o.shown!.z - (o.state?.z ?? 0)) > 0.02, walk: o.state?.w ?? 0, ground: o.state?.g ?? true })));
+        if (room.amIt && !s.finished) {
+          for (const o of list) if (Math.hypot(o.shown!.x - p.x, o.shown!.z - p.z) < 0.9 && Math.abs(o.shown!.y - p.y) < 1.2) room.tag(o.id);
+        }
       }
       renderer.render(s, cam, dt);
       hudTick += dt;

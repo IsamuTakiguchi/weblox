@@ -1836,3 +1836,121 @@ body.immersive-open {
     display: none;
   }
 }
+
+/* ---------- マルチプレイ（部屋） ---------- */
+
+.room {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+}
+
+.room-code-card {
+  text-align: center;
+}
+
+.room-code {
+  font-size: 56px;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  margin: 6px 0;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+.room-code-card .toolbar {
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.room-game {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.room-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.room-members li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.badge {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.badge-blue {
+  background: rgba(59, 130, 246, 0.35);
+}
+
+.join-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.join-form input {
+  width: 200px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.detail-together {
+  margin-top: 8px;
+}
+
+.ranking {
+  text-align: left;
+  margin: 10px 0;
+}
+
+.ranking ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.ranking li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ranking li.me {
+  outline: 2px solid var(--blue, #3b82f6);
+}
+
+.ranking .rank {
+  width: 28px;
+  text-align: center;
+  font-weight: 900;
+}
+
+.ranking .spacer {
+  flex: 1;
+}

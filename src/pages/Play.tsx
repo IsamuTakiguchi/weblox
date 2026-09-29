@@ -5,9 +5,11 @@ import { fireConfetti, toast } from '../components/feedback';
 import { Empty, Modal } from '../components/ui';
 import type { GameData, GameResult } from '../engine/types';
 import { consumeAutoStart, enterFullscreen, exitFullscreen, lockPageZoom, resetPageView } from '../fullscreen';
+import { type RoomSession, useRoomSnapshot } from '../net/room';
 import { hrefFor, navigate } from '../router';
 import { decodeGame, shareUrl } from '../share/codec';
 import { getDraft, recordPlay, recordWin, useStore } from '../store/store';
+import { AvatarBadge } from '../components/ui';
 import { GameDetail } from './GameDetail';
 
 async function copyText(text: string): Promise<boolean> {
@@ -51,7 +53,39 @@ function goHome(): void {
   navigate({ name: 'home' });
 }
 
-function ResultModal({ result, game, onRetry, onLeave, published }: { result: GameResult; game: GameData; onRetry: () => void; onLeave: () => void; published: boolean }) {
+/** マルチプレイの結果：みんなの順位 */
+function RoomRanking({ room }: { room: RoomSession }) {
+  const snap = useRoomSnapshot(room)!;
+  const tag = snap.mode === 'tag';
+  const list = [...snap.players].sort((a, b) => {
+    const fa = a.finished;
+    const fb = b.finished;
+    if (!fa && !fb) return 0;
+    if (!fa) return 1;
+    if (!fb) return -1;
+    if (fa.outcome !== fb.outcome) return fa.outcome === 'win' ? -1 : 1;
+    return tag ? 0 : fa.timeMs - fb.timeMs;
+  });
+  return (
+    <div className="ranking">
+      <h3>{tag ? '👹 おにごっこ の けっか' : '🏁 じゅんい'}</h3>
+      <ol>
+        {list.map((p, i) => (
+          <li key={p.id} className={p.isSelf ? 'me' : ''}>
+            <span className="rank">{p.finished ? (p.finished.outcome === 'win' ? ['🥇', '🥈', '🥉'][i] ?? `${i + 1}.` : '💫') : '…'}</span>
+            <AvatarBadge avatar={p.avatar} size={28} />
+            <b>{p.name}</b>
+            {p.it && tag && <span className="badge">おに</span>}
+            <span className="spacer" />
+            <span className="hint">{p.finished ? (tag ? (p.finished.outcome === 'win' ? 'にげきった！' : 'つかまった') : p.finished.outcome === 'win' ? `${(p.finished.timeMs / 1000).toFixed(1)}秒 · ⭐${p.finished.score}` : 'ざんねん') : 'プレイ中…'}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function ResultModal({ result, game, onRetry, onLeave, published, room }: { result: GameResult; game: GameData; onRetry: () => void; onLeave: () => void; published: boolean; room?: RoomSession }) {
   const [reward, setReward] = useState<{ reward: number; newBest: boolean } | null>(null);
   useEffect(() => {
     if (result.outcome === 'win') {
@@ -83,13 +117,22 @@ function ResultModal({ result, game, onRetry, onLeave, published }: { result: Ga
             </span>
           </p>
         )}
+        {room && <RoomRanking room={room} />}
         <div className="modal-actions">
-          <button className="btn btn-primary btn-lg" onClick={onRetry}>
-            🔁 もういっかい
-          </button>
-          <button className="btn btn-lg" onClick={onLeave}>
-            🚪 やめる
-          </button>
+          {room ? (
+            <button className="btn btn-primary btn-lg" onClick={onLeave}>
+              👥 ロビーへ もどる
+            </button>
+          ) : (
+            <>
+              <button className="btn btn-primary btn-lg" onClick={onRetry}>
+                🔁 もういっかい
+              </button>
+              <button className="btn btn-lg" onClick={onLeave}>
+                🚪 やめる
+              </button>
+            </>
+          )}
           <button className="btn btn-lg" onClick={goHome}>
             🏠 ホームへ
           </button>
@@ -99,7 +142,7 @@ function ResultModal({ result, game, onRetry, onLeave, published }: { result: Ga
   );
 }
 
-function PauseMenu({ onResume, onRestart, onLeave, game }: { onResume: () => void; onRestart: () => void; onLeave: () => void; game: GameData }) {
+function PauseMenu({ onResume, onRestart, onLeave, game, room }: { onResume: () => void; onRestart: () => void; onLeave: () => void; game: GameData; room?: RoomSession }) {
   const is3d = game.rules.mode === '3d';
   const platformer = game.rules.mode === 'platformer';
   const mini = game.rules.mode === 'garden' || game.rules.mode === 'fishing';
@@ -148,11 +191,13 @@ function PauseMenu({ onResume, onRestart, onLeave, game }: { onResume: () => voi
           <button className="btn btn-primary btn-lg" onClick={onResume}>
             ▶ つづける
           </button>
-          <button className="btn btn-lg" onClick={onRestart}>
-            🔁 さいしょから
-          </button>
+          {!room && (
+            <button className="btn btn-lg" onClick={onRestart}>
+              🔁 さいしょから
+            </button>
+          )}
           <button className="btn btn-lg btn-danger" onClick={onLeave}>
-            🚪 ゲームをやめる
+            {room ? '👥 ロビーへ もどる' : '🚪 ゲームをやめる'}
           </button>
           <button className="btn btn-lg" onClick={goHome}>
             🏠 ホームへ
@@ -206,13 +251,18 @@ interface PlayerProps {
   /** 「やめる」で戻る先 */
   onLeave: () => void;
   autoStart?: boolean;
+  /** マルチプレイの部屋（ほかの人を表示し、自分の位置を送る） */
+  room?: RoomSession;
+  /** 結果を書きかえる（おにごっこ の勝ち負けなど） */
+  transformResult?: (r: GameResult) => GameResult;
 }
 
 /** 全画面のゲームプレイ画面（Roblox でゲームに入ったときの画面） */
-export function GamePlayer({ game, published, onLeave, autoStart = false }: PlayerProps) {
+export function GamePlayer({ game, published, onLeave, autoStart = false, room, transformResult }: PlayerProps) {
   const [result, setResult] = useState<GameResult | null>(null);
   const [resetKey, setResetKey] = useState(0);
   const [menu, setMenu] = useState(false);
+  const roomSnap = useRoomSnapshot(room ?? null);
 
   useEffect(() => {
     if (published) recordPlay(game.id);
@@ -243,7 +293,7 @@ export function GamePlayer({ game, published, onLeave, autoStart = false }: Play
     return () => window.removeEventListener('keydown', on);
   }, [result]);
 
-  const onFinish = useCallback((r: GameResult) => setResult(r), []);
+  const onFinish = useCallback((r: GameResult) => setResult(transformResult ? transformResult(r) : r), [transformResult]);
   const retry = () => {
     sfx.tap();
     setResult(null);
@@ -270,9 +320,18 @@ export function GamePlayer({ game, published, onLeave, autoStart = false }: Play
           setMenu(true);
         }}
         fullscreenButton
+        room={room}
+        extra={
+          roomSnap ? (
+            <span className={`hud-item ${roomSnap.mode === 'tag' && roomSnap.players.some((p) => p.isSelf && p.it) ? 'hud-danger' : ''}`} title="いっしょにあそんでいる人">
+              👥 {roomSnap.players.length}
+              {roomSnap.mode === 'tag' ? (roomSnap.players.some((p) => p.isSelf && p.it) ? ' 👹 あなたが おに！' : ` 👹 ${roomSnap.players.find((p) => p.it)?.name ?? '?'}`) : ''}
+            </span>
+          ) : undefined
+        }
       />
-      {menu && !result && <PauseMenu game={game} onResume={() => setMenu(false)} onRestart={retry} onLeave={leave} />}
-      {result && <ResultModal result={result} game={game} onRetry={retry} onLeave={leave} published={published} />}
+      {menu && !result && <PauseMenu game={game} onResume={() => setMenu(false)} onRestart={retry} onLeave={leave} room={room} />}
+      {result && <ResultModal result={result} game={game} onRetry={retry} onLeave={leave} published={published} room={room} />}
     </div>
   );
 }

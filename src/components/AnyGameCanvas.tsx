@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { GameData, GameResult } from '../engine/types';
 import { canFullscreen, isFullscreen, toggleFullscreen } from '../fullscreen';
+import type { RoomSession } from '../net/room';
 import { GameCanvas } from './GameCanvas';
 import type { HudState } from './hud';
 
@@ -21,6 +22,8 @@ interface Props {
   fullscreenButton?: boolean;
   /** トップバー右側に足す要素 */
   extra?: ReactNode;
+  /** マルチプレイの部屋 */
+  room?: RoomSession;
 }
 
 /**
@@ -28,7 +31,7 @@ interface Props {
  * 上部に半透明のバー（左上メニュー・ライフ・コイン・スコア・時間）、下にゲーム画面。
  * ゲームのモードに応じて 2D / 3D のプレイ画面を出し分ける。
  */
-export function AnyGameCanvas({ game, onFinish, resetKey, autoStart, paused, onMenu, fullscreenButton, extra }: Props) {
+export function AnyGameCanvas({ game, onFinish, resetKey, autoStart, paused, onMenu, fullscreenButton, extra, room }: Props) {
   const [hud, setHud] = useState<HudState>({ lives: game.rules.lives, coins: 0, total: 0, score: 0, keys: 0, time: null });
   const [fs, setFs] = useState(isFullscreen());
   const onHud = useCallback((h: HudState) => setHud(h), []);
@@ -48,7 +51,7 @@ export function AnyGameCanvas({ game, onFinish, resetKey, autoStart, paused, onM
   const mini = mode === 'garden' || mode === 'fishing';
   const modeIcon = mode === '3d' ? '🧊 3D' : mode === 'platformer' ? '🦘' : mode === 'garden' ? '🌱' : mode === 'fishing' ? '🎣' : '🚶';
 
-  const canvasProps = { game, onFinish, onHud, resetKey, autoStart, paused };
+  const canvasProps = { game, onFinish, onHud, resetKey, autoStart, paused, room };
   return (
     <div className="play-wrap">
       <div className="topbar" role="toolbar" aria-label="ゲームのじょうほう">

@@ -5,6 +5,7 @@ import { AvatarBadge, Empty, GameCard, Thumbnail } from '../components/ui';
 import { themeDef } from '../engine/themes';
 import type { GameData, PublishedGame } from '../engine/types';
 import { enterFullscreen, requestAutoStart } from '../fullscreen';
+import { RoomSession, setCurrentRoom } from '../net/room';
 import { hrefFor, navigate } from '../router';
 import { getDraft, importToLibrary, toggleLike, useStore } from '../store/store';
 import { shareGame } from './Play';
@@ -32,6 +33,13 @@ export function GameDetail({ game, shared, onPlay }: { game: GameData; shared?: 
     // ユーザー操作の直後でないと全画面にできないので、ここで要求してから遷移する
     void enterFullscreen();
     onPlay();
+  };
+  const playTogether = () => {
+    sfx.tap();
+    const me = { name: profile.name, avatar: profile.avatar };
+    const room = RoomSession.create(game, me);
+    setCurrentRoom(room);
+    navigate({ name: 'room', code: room.code });
   };
 
   return (
@@ -62,6 +70,11 @@ export function GameDetail({ game, shared, onPlay }: { game: GameData; shared?: 
           <button type="button" className="btn btn-primary btn-xl detail-play" onClick={play}>
             ▶ あそぶ
           </button>
+          {!mini && (
+            <button type="button" className="btn btn-blue btn-lg detail-together" onClick={playTogether}>
+              👥 いっしょにあそぶ（ほかの端末と）
+            </button>
+          )}
           <div className="detail-stats">
             {pub && (
               <>

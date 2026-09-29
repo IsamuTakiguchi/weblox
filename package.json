@@ -16,7 +16,8 @@
     "lz-string": "^1.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "three": "^0.186.1"
+    "three": "^0.186.1",
+    "trystero": "^0.25.4"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

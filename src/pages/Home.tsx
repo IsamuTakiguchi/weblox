@@ -1,6 +1,7 @@
 import { Empty, GameCard } from '../components/ui';
 import { hrefFor } from '../router';
 import { useStore } from '../store/store';
+import { JoinRoomForm } from './Room';
 
 export function HomePage() {
   const published = useStore((s) => s.published);
@@ -40,6 +41,14 @@ export function HomePage() {
         <div className="hero-art" aria-hidden>
           🎮🧱🚩
         </div>
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <h2 className="section-title">👥 いっしょにあそぶ（マルチプレイ）</h2>
+          <span className="hint">ゲームの「👥 いっしょにあそぶ」で部屋をつくり、あいことばを ともだちに おしえよう</span>
+        </div>
+        <JoinRoomForm />
       </section>
 
       {escape.length > 0 && (

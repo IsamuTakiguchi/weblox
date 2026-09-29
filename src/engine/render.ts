@@ -160,8 +160,19 @@ function drawTile(ctx: CanvasRenderingContext2D, t: TileId, px: number, py: numb
   }
 }
 
+/** マルチプレイで表示する ほかの人（2D） */
+export interface RemotePlayer2D {
+  /** マス座標（キャラクターの左上） */
+  x: number;
+  y: number;
+  face: string;
+  name: string;
+  /** おにごっこ の おに */
+  it: boolean;
+}
+
 /** ゲーム画面を描く */
-export function renderRuntime(ctx: CanvasRenderingContext2D, rt: GameRuntime, w: number, h: number): Camera {
+export function renderRuntime(ctx: CanvasRenderingContext2D, rt: GameRuntime, w: number, h: number, others: readonly RemotePlayer2D[] = []): Camera {
   const game = rt.game;
   const tile = Math.min(w / game.width, h / game.height);
   // マップがキャンバスより大きければカメラ追従
@@ -223,6 +234,26 @@ export function renderRuntime(ctx: CanvasRenderingContext2D, rt: GameRuntime, w:
       ctx.fillText('❗', toPx(h.x + 0.5), toPy(h.y - 0.15));
       ctx.font = `${Math.round(s * 0.8)}px serif`;
     }
+  }
+
+  // ほかの人（マルチプレイ）
+  for (const o of others) {
+    const ox = toPx(o.x + 0.35);
+    const oy = toPy(o.y + 0.4);
+    ctx.globalAlpha = 0.85;
+    ctx.font = `${Math.round(s * 0.85)}px serif`;
+    ctx.fillText(o.face, ox, oy + s * 0.02);
+    ctx.globalAlpha = 1;
+    ctx.font = `bold ${Math.max(10, Math.round(s * 0.32))}px sans-serif`;
+    const label = `${o.it ? '👹 ' : ''}${o.name}`;
+    const tw = ctx.measureText(label).width + 8;
+    ctx.fillStyle = o.it ? 'rgba(220,38,38,0.85)' : 'rgba(0,0,0,0.55)';
+    ctx.beginPath();
+    ctx.roundRect(ox - tw / 2, oy - s * 0.95, tw, s * 0.4, 6);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, ox, oy - s * 0.75);
+    ctx.font = `${Math.round(s * 0.8)}px serif`;
   }
 
   // 主人公

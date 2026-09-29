@@ -51,6 +51,48 @@ interface Particle {
   life: number;
 }
 
+/** マルチプレイで表示する ほかの人 */
+export interface RemotePlayer3D {
+  id: string;
+  avatar: AvatarConfig;
+  name: string;
+  it: boolean;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  moving: boolean;
+  walk: number;
+  ground: boolean;
+}
+
+const labelCache = new Map<string, THREE.Texture>();
+
+/** 名前ラベル（おに のときは赤） */
+function labelTexture(text: string, it: boolean): THREE.Texture {
+  const key = `${it ? 'it:' : ''}${text}`;
+  const cached = labelCache.get(key);
+  if (cached) return cached;
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 64;
+  const ctx = c.getContext('2d')!;
+  ctx.font = 'bold 30px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const w = Math.min(248, ctx.measureText(text).width + 24);
+  ctx.fillStyle = it ? 'rgba(220,38,38,0.9)' : 'rgba(0,0,0,0.6)';
+  ctx.beginPath();
+  ctx.roundRect(128 - w / 2, 8, w, 48, 12);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(text, 128, 33);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  labelCache.set(key, tex);
+  return tex;
+}
+
 export class Renderer3D {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -67,6 +109,7 @@ export class Renderer3D {
   private sun: THREE.DirectionalLight;
   private flood: THREE.Mesh | null = null;
   private car: THREE.Group;
+  private remotes = new Map<string, { rig: AvatarRig; label: THREE.Sprite; labelKey: string; it: THREE.Sprite }>();
 
   constructor(canvas: HTMLCanvasElement, game: GameData, avatarConfig: AvatarConfig) {
     this.game = game;
@@ -391,6 +434,42 @@ export class Renderer3D {
       alert.visible = false;
       this.scene.add(body, alert);
       this.hunterSprites.push({ body, alert });
+    }
+  }
+
+  /** マルチプレイ：ほかの人のアバターを置く／動かす／いなくなったら消す */
+  setRemote(list: RemotePlayer3D[]): void {
+    const seen = new Set<string>();
+    for (const r of list) {
+      seen.add(r.id);
+      let e = this.remotes.get(r.id);
+      if (!e) {
+        const rig = buildAvatar(r.avatar, this.game.hero);
+        const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(r.name, r.it), transparent: true, depthWrite: false }));
+        label.scale.set(1.6, 0.4, 1);
+        const it = makeSprite('👹', 0.7);
+        it.visible = false;
+        this.scene.add(rig.group, label, it);
+        e = { rig, label, labelKey: '', it };
+        this.remotes.set(r.id, e);
+      }
+      const key = `${r.it ? 'it:' : ''}${r.name}`;
+      if (e.labelKey !== key) {
+        (e.label.material as THREE.SpriteMaterial).map = labelTexture(r.name, r.it);
+        (e.label.material as THREE.SpriteMaterial).needsUpdate = true;
+        e.labelKey = key;
+      }
+      e.rig.group.position.set(r.x, r.y, r.z);
+      e.rig.group.rotation.y = r.yaw;
+      e.rig.pose(r.walk, r.moving, r.ground);
+      e.label.position.set(r.x, r.y + PLAYER_HEIGHT + 0.5, r.z);
+      e.it.visible = r.it;
+      e.it.position.set(r.x, r.y + PLAYER_HEIGHT + 1.0, r.z);
+    }
+    for (const [id, e] of this.remotes) {
+      if (seen.has(id)) continue;
+      this.scene.remove(e.rig.group, e.label, e.it);
+      this.remotes.delete(id);
     }
   }
 
