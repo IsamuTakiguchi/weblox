@@ -117,3 +117,6 @@ export const PRO_PALETTE: readonly TileId[] = [
   'step5',
   'empty',
 ];
+
+/** パレットで絵文字ではなく、マスと同じ見た目の見本を出すタイル（じめん・かべ・だん など） */
+export const SWATCH_TILES: readonly TileId[] = ['ground', 'wall', 'step2', 'step3', 'step4', 'step5', 'rail', 'crumble'];

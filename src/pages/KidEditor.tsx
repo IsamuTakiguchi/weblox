@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sfx, speak } from '../audio';
 import { fireConfetti, toast } from '../components/feedback';
 import { AnyGameCanvas } from '../components/AnyGameCanvas';
-import { GridEditor } from '../components/GridEditor';
+import { GridEditor, TileSwatch } from '../components/GridEditor';
 import { Modal, SpeakButton, Thumbnail } from '../components/ui';
 import { autoFix, createGame, defaultRules, emptyTiles, fillAll, fillFloor, KID_WIDTH, randomLevel } from '../engine/level';
 import { HEROES, THEMES } from '../engine/themes';
-import { KID_PALETTE, tileDef } from '../engine/tiles';
+import { KID_PALETTE, SWATCH_TILES, tileDef } from '../engine/tiles';
 import type { GameData, GameResult, TileId } from '../engine/types';
 import { enterFullscreen, requestAutoStart } from '../fullscreen';
 import { hrefFor, navigate } from '../router';
@@ -319,7 +319,7 @@ export function KidEditorPage({ id }: { id?: string }) {
                       }}
                       aria-pressed={tool === t}
                     >
-                      <span className="palette-emoji">{t === 'start' ? game.hero : t === 'empty' && game.rules.mode === '3d' ? '🕳️' : d.emoji}</span>
+                      <span className="palette-emoji">{SWATCH_TILES.includes(t) ? <TileSwatch tile={t} game={game} /> : t === 'start' ? game.hero : t === 'empty' && game.rules.mode === '3d' ? '🕳️' : d.emoji}</span>
                       <span>{t === 'empty' && game.rules.mode === '3d' ? 'あな' : d.label}</span>
                     </button>
                   );

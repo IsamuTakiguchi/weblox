@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sfx } from '../audio';
 import { fireConfetti, toast } from '../components/feedback';
 import { AnyGameCanvas } from '../components/AnyGameCanvas';
-import { GridEditor } from '../components/GridEditor';
+import { GridEditor, TileSwatch } from '../components/GridEditor';
 import { Modal } from '../components/ui';
 import { autoFix, createGame, defaultRules, emptyTiles, ENEMY_EMOJIS, fillAll, fillFloor, FLOOD_OPTIONS, GRID_SIZES, randomLevel, resizeTiles, validateGame } from '../engine/level';
 import { HEROES, THEMES } from '../engine/themes';
-import { PRO_PALETTE, tileDef } from '../engine/tiles';
+import { PRO_PALETTE, SWATCH_TILES, tileDef } from '../engine/tiles';
 import type { GameData, GameMode, GameResult, TileId, WinCondition } from '../engine/types';
 import { hrefFor, navigate } from '../router';
 import { exportJson, importJson } from '../share/codec';
@@ -176,7 +176,7 @@ export function StudioPage({ id }: { id?: string }) {
               const d = tileDef(t);
               return (
                 <button key={t} className={`palette-btn ${tool === t ? 'selected' : ''}`} onClick={() => setTool(t)} title={d.hint} aria-pressed={tool === t}>
-                  <span className="palette-emoji">{t === 'start' ? game.hero : t === 'enemy' ? (game.enemyEmoji ?? d.emoji) : d.emoji}</span>
+                  <span className="palette-emoji">{SWATCH_TILES.includes(t) ? <TileSwatch tile={t} game={game} /> : t === 'start' ? game.hero : t === 'enemy' ? (game.enemyEmoji ?? d.emoji) : d.emoji}</span>
                   <span>{d.label}</span>
                 </button>
               );

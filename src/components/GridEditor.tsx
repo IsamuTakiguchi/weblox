@@ -1,9 +1,46 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { sfx } from '../audio';
 import { getTile, replaceAll, setTile } from '../engine/level';
 import { themeDef } from '../engine/themes';
-import { hunterEmoji, tileDef } from '../engine/tiles';
+import { hunterEmoji, stepHeight, tileDef } from '../engine/tiles';
 import type { GameData, TileId } from '../engine/types';
+
+/**
+ * マスの見た目（エディタとパレットで共通）。
+ * じめん・かべ・だん は「ブロック」として立体的に描き、何もないマス（床／奈落／空）とはっきり区別する。
+ */
+export function tileLook(t: TileId, game: Pick<GameData, 'theme' | 'rules'>, x = 0, y = 0): { className: string; style: CSSProperties } {
+  const th = themeDef(game.theme);
+  const mode = game.rules.mode;
+  const alt = (x + y) % 2 === 0;
+  if (t === 'ground') {
+    // 上が草（テーマのふち色）、下が土のブロック
+    return { className: 'tile-block tile-ground', style: { '--top': th.groundEdge, '--body': th.ground } as CSSProperties };
+  }
+  if (t === 'wall') return { className: 'tile-block tile-wall', style: { '--body': th.wall, '--line': th.wallEdge } as CSSProperties };
+  const sh = stepHeight(t);
+  if (sh !== null) return { className: 'tile-block tile-ground tile-step', style: { '--top': th.groundEdge, '--body': th.ground } as CSSProperties };
+  if (t === 'rail') return { className: 'tile-block tile-rail', style: {} };
+  if (t === 'crumble') return { className: 'tile-block tile-crumble', style: { '--body': th.ground } as CSSProperties };
+  if (t === 'door') return { className: 'tile-block tile-door', style: {} };
+  // ブロックでないマスの背景
+  if (mode === '3d' && t === 'empty') return { className: 'tile-void', style: {} }; // 3D の空マス＝奈落
+  const bg = mode === 'platformer' ? (alt ? th.skyBottom : th.skyTop) : alt ? th.floor : th.floorAlt;
+  return { className: 'tile-open', style: { background: bg } };
+}
+
+/** パレットのボタンに出す小さな見本（じめん・かべなどはマスと同じ見た目） */
+export function TileSwatch({ tile, game }: { tile: TileId; game: Pick<GameData, 'theme' | 'rules' | 'hero' | 'enemyEmoji'> }) {
+  const look = tileLook(tile, game);
+  const block = look.className.includes('tile-block') || look.className === 'tile-void';
+  if (!block) return null;
+  const sh = stepHeight(tile);
+  return (
+    <span className={`tile-swatch ${look.className}`} style={look.style} aria-hidden>
+      {sh !== null && <span className="tile-step-num">{sh}</span>}
+    </span>
+  );
+}
 
 interface Props {
   game: GameData;
@@ -18,11 +55,19 @@ interface Props {
  * DOM のグリッドで作っているので、指でも正確に操作できる。
  */
 export function GridEditor({ game, tool, onChange, cell }: Props) {
-  const th = themeDef(game.theme);
   const painting = useRef(false);
   const lastIdx = useRef(-1);
   const tilesRef = useRef(game.tiles);
   tilesRef.current = game.tiles;
+  // 置いたばかりのマス（ぽんっと はねるアニメ）
+  const [popped, setPopped] = useState<Map<number, number>>(() => new Map());
+  // 置こうとしたが、すでに同じものがあったマス（ゆらして知らせる）
+  const [same, setSame] = useState<{ idx: number; n: number } | null>(null);
+  useEffect(() => {
+    if (popped.size === 0) return;
+    const id = setTimeout(() => setPopped(new Map()), 450);
+    return () => clearTimeout(id);
+  }, [popped]);
 
   const paint = useCallback(
     (idx: number) => {
@@ -31,12 +76,17 @@ export function GridEditor({ game, tool, onChange, cell }: Props) {
       const x = idx % game.width;
       const y = Math.floor(idx / game.width);
       const cur = getTile({ width: game.width, height: game.height, tiles: tilesRef.current }, x, y);
-      if (cur === tool) return;
+      if (cur === tool) {
+        // すでに同じものがある（例：3D の じめん は はじめから しいてある）ことを ゆらして知らせる
+        setSame((s) => ({ idx, n: (s?.n ?? 0) + 1 }));
+        return;
+      }
       let next = tilesRef.current;
       if (tool === 'start') next = replaceAll(next, 'start', 'empty');
       next = setTile(next, game.width, x, y, tool);
       tilesRef.current = next;
       onChange(next);
+      setPopped((m) => new Map(m).set(idx, Date.now()));
       if (tool === 'empty') sfx.erase();
       else sfx.place();
     },
@@ -72,28 +122,29 @@ export function GridEditor({ game, tool, onChange, cell }: Props) {
     const y = Math.floor(i / game.width);
     const t = getTile(game, x, y);
     const def = tileDef(t);
-    let bg = (x + y) % 2 === 0 ? th.floor : th.floorAlt;
-    if (game.rules.mode === 'platformer') bg = (x + y) % 2 === 0 ? th.skyBottom : th.skyTop;
-    if (game.rules.mode === '3d' && t === 'empty') bg = (x + y) % 2 === 0 ? '#0b0f18' : '#111827'; // 奈落
-    if (t === 'ground') bg = game.rules.mode === '3d' ? ((x + y) % 2 === 0 ? th.floor : th.floorAlt) : th.ground;
-    if (t === 'wall') bg = th.wall;
-    if (t.startsWith('step')) bg = th.groundEdge;
+    const is3d = game.rules.mode === '3d';
+    // アイテムなどは、その下が床であることがわかるように 3D では床ブロックの上に描く
+    const underIsGround = is3d && t !== 'empty' && t !== 'wall' && t !== 'water' && t !== 'cloud' && t !== 'door' && stepHeight(t) === null && t !== 'rail' && t !== 'crumble';
+    const look = tileLook(underIsGround ? 'ground' : t, game, x, y);
     let content = '';
     if (t === 'start') content = game.hero;
     else if (t === 'enemy') content = game.enemyEmoji ?? def.emoji;
     else if (t === 'hunter') content = hunterEmoji(game);
-    else if (t !== 'empty' && t !== 'ground' && t !== 'wall') content = def.emoji;
-    if (t === 'rail') bg = '#8d6e63';
-    if (t === 'crumble') bg = '#a1887f';
+    else if (t !== 'empty' && t !== 'ground' && t !== 'wall' && t !== 'door' && t !== 'rail' && t !== 'crumble' && stepHeight(t) === null) content = def.emoji;
+    const sh = stepHeight(t);
+    const pop = popped.has(i);
+    const shake = same?.idx === i;
     cells.push(
       <div
-        key={i}
-        className="cell"
+        key={shake ? `${i}-same-${same!.n}` : i}
+        className={`cell ${look.className} ${pop ? 'cell-pop' : ''} ${shake ? 'cell-same' : ''}`}
         data-idx={i}
-        style={{ width: cell, height: cell, background: bg, fontSize: cell * 0.7 }}
+        style={{ width: cell, height: cell, fontSize: cell * 0.7, ...look.style }}
         role="gridcell"
         aria-label={`${x + 1},${y + 1} ${def.label}`}
       >
+        {sh !== null && <span className="tile-step-num">{sh}</span>}
+        {t === 'door' && '🚪'}
         {content}
       </div>,
     );
